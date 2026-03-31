@@ -1,0 +1,46 @@
+type Market @entity {
+  id: ID!
+  marketId: String!
+  creator: User
+  outcomes: [Outcome!]! @derivedFrom(field: "market")
+  bets: [Bet!]! @derivedFrom(field: "market")
+  status: String!
+  totalPool: BigInt!
+  createdAt: BigInt!
+  closedAt: BigInt
+  finalizedAt: BigInt
+  winningOutcome: Outcome
+  resolutionHash: String
+  voidReason: String
+}
+
+type Outcome @entity {
+  id: ID!
+  market: Market!
+  outcomeKey: String!
+  label: String!
+  poolAmount: BigInt!
+  odds: BigDecimal!
+  bets: [Bet!]! @derivedFrom(field: "outcome")
+}
+
+type Bet @entity {
+  id: ID!
+  market: Market!
+  outcome: Outcome!
+  user: User!
+  amount: BigInt!
+  oddsAtBet: BigDecimal!
+  status: String!
+  createdAt: BigInt!
+  claimedAt: BigInt
+}
+
+type User @entity {
+  id: ID!
+  totalBets: BigInt!
+  totalVolume: BigInt!
+  totalWon: BigInt!
+  pnl: BigDecimal!
+  bets: [Bet!]! @derivedFrom(field: "user")
+}
