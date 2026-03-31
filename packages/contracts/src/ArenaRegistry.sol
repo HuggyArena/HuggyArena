@@ -20,6 +20,7 @@ contract ArenaRegistry is AccessControl, Pausable {
     uint256 public constant MAX_FEE_BPS = 5000;
 
     uint256 public creatorBondAmount = 500 * 10**6;
+    uint256 public challengeBondAmount = 10 * 10**6;
     uint256 public minBet = 1 * 10**6;
     uint256 public maxBet = 100000 * 10**6;
 
@@ -27,7 +28,18 @@ contract ArenaRegistry is AccessControl, Pausable {
     address public treasury;
     address public beacon;
     address public oracleModule;
-    uint256 public treasuryTimelock = 2 days;
+    uint256 public constant treasuryTimelock = 2 days;
+
+    // 2-step timelock state for treasury changes
+    address public pendingTreasury;
+    uint256 public treasuryChangeScheduledAt;
+
+    // 2-step timelock state for fee changes
+    uint256 public pendingProtocolFeeBps;
+    uint256 public pendingCreatorFeeBps;
+    uint256 public pendingReferralFeeBps;
+    uint256 public pendingDisputeReserveBps;
+    uint256 public feeChangeScheduledAt;
 
     mapping(address => bool) public isMarket;
     mapping(address => bool) public isCreator;
@@ -36,9 +48,12 @@ contract ArenaRegistry is AccessControl, Pausable {
     mapping(address => bool) public sanctioned;
 
     event FeesUpdated(uint256 protocol, uint256 creator, uint256 referral, uint256 dispute);
+    event FeesProposed(uint256 protocol, uint256 creator, uint256 referral, uint256 dispute);
     event CreatorBondUpdated(uint256 newAmount);
+    event ChallengeBondUpdated(uint256 newAmount);
     event MarketRegistered(address indexed market, string indexed marketId);
     event TreasuryUpdated(address newTreasury);
+    event TreasuryProposed(address indexed pending);
     event BeaconUpdated(address newBeacon);
     event OracleModuleUpdated(address newOracleModule);
     event CreatorBondPosted(address indexed creator, uint256 amount);
@@ -55,17 +70,48 @@ contract ArenaRegistry is AccessControl, Pausable {
 
     function setFees(uint256 _p, uint256 _c, uint256 _r, uint256 _d) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_p + _c + _r + _d <= MAX_FEE_BPS, "Registry: max fee");
-        protocolFeeBps = _p;
-        creatorFeeBps = _c;
-        referralFeeBps = _r;
-        disputeReserveBps = _d;
-        emit FeesUpdated(_p, _c, _r, _d);
+        pendingProtocolFeeBps = _p;
+        pendingCreatorFeeBps = _c;
+        pendingReferralFeeBps = _r;
+        pendingDisputeReserveBps = _d;
+        feeChangeScheduledAt = block.timestamp;
+        emit FeesProposed(_p, _c, _r, _d);
+    }
+
+    function executeFees() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(feeChangeScheduledAt > 0, "Registry: no pending fees");
+        require(block.timestamp >= feeChangeScheduledAt + treasuryTimelock, "Registry: timelock active");
+        protocolFeeBps = pendingProtocolFeeBps;
+        creatorFeeBps = pendingCreatorFeeBps;
+        referralFeeBps = pendingReferralFeeBps;
+        disputeReserveBps = pendingDisputeReserveBps;
+        feeChangeScheduledAt = 0;
+        emit FeesUpdated(protocolFeeBps, creatorFeeBps, referralFeeBps, disputeReserveBps);
     }
 
     function setTreasury(address _t) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_t != address(0), "Registry: zero treasury");
-        treasury = _t;
-        emit TreasuryUpdated(_t);
+        pendingTreasury = _t;
+        treasuryChangeScheduledAt = block.timestamp;
+        emit TreasuryProposed(_t);
+    }
+
+    function executeTreasury() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(pendingTreasury != address(0), "Registry: no pending treasury");
+        require(block.timestamp >= treasuryChangeScheduledAt + treasuryTimelock, "Registry: timelock active");
+        treasury = pendingTreasury;
+        pendingTreasury = address(0);
+        emit TreasuryUpdated(treasury);
+    }
+
+    function setCreatorBondAmount(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        creatorBondAmount = amount;
+        emit CreatorBondUpdated(amount);
+    }
+
+    function setChallengeBondAmount(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        challengeBondAmount = amount;
+        emit ChallengeBondUpdated(amount);
     }
 
     function setBeacon(address _b) external onlyRole(DEFAULT_ADMIN_ROLE) {

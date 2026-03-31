@@ -93,13 +93,17 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
           },
           create: {
             contractAddress: market.id,
+            // Use marketId as the human-readable title/question until richer metadata
+            // is available from a dedicated market-creation endpoint.
             title: market.marketId,
             question: market.marketId,
             status: market.status,
             totalPool: market.totalPool.toString(),
             sourcePrimary: 'subgraph',
-            closeTime: new Date(),
-            resolveTime: new Date(),
+            // createdAt comes from the chain; closeTime/resolveTime are not available
+            // in the subgraph event and should be updated by the market-creation flow.
+            closeTime: new Date(Number(market.createdAt) * 1000),
+            resolveTime: new Date(Number(market.createdAt) * 1000),
             createdAt: new Date(Number(market.createdAt) * 1000),
           },
         });

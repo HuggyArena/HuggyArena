@@ -20,6 +20,7 @@ contract Deploy is Script {
 
         registry.setBeacon(address(factory.beacon()));
         registry.grantRole(registry.OPERATOR_ROLE(), address(factory));
+        registry.grantRole(registry.OPERATOR_ROLE(), admin);
 
         vm.stopBroadcast();
 

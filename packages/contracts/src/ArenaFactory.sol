@@ -43,6 +43,8 @@ contract ArenaFactory is AccessControl {
         );
 
         if (registry.creatorBondLocked(msg.sender) == 0) {
+            // NOTE: sender must approve the REGISTRY (not this factory) for creatorBondAmount
+            // before calling createMarket. Use checkBondAllowance() to verify readiness.
             registry.lockCreatorBond(msg.sender, registry.creatorBondAmount());
         }
 
@@ -70,5 +72,13 @@ contract ArenaFactory is AccessControl {
 
     function upgradeBeacon(address newImpl) external onlyRole(DEFAULT_ADMIN_ROLE) {
         beacon.upgradeTo(newImpl);
+    }
+
+    /// @notice Returns whether `creator` has approved the registry for at least creatorBondAmount.
+    /// Creators must approve the REGISTRY address (not this factory) before calling createMarket.
+    function checkBondAllowance(address creator) external view returns (bool sufficient) {
+        uint256 required = registry.creatorBondAmount();
+        uint256 allowed = registry.collateral().allowance(creator, address(registry));
+        return allowed >= required;
     }
 }

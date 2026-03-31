@@ -15,7 +15,7 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
 
     uint256[50] private __gap;
 
-    enum MarketState { DRAFT, PENDING_APPROVAL, OPEN, CLOSED, PROPOSED, CHALLENGED, FINALIZED, VOIDED }
+    enum MarketState { PENDING_APPROVAL, OPEN, CLOSED, PROPOSED, CHALLENGED, FINALIZED, VOIDED }
 
     struct MarketParams {
         string marketId;
@@ -54,12 +54,23 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
     uint256 public finalizedAt;
     bytes32 public resolutionHash;
 
+    // Challenge bond state (#1)
+    address public challenger;
+    uint256 public challengeBond;
+
+    // Claim dust-prevention tracking (#4)
+    uint256 public totalClaimed;
+    uint256 public totalWinningStakeClaimed;
+
+    // Fee BPS snapshot at market creation (#21)
+    uint256 public feeBpsSnapshot;
+
     event MarketInitialized(string indexed marketId, address indexed creator);
     event MarketApproved(address indexed approver);
     event BetPlaced(address indexed user, bytes32 indexed outcome, uint256 amount, uint256 newTotal, uint256 feeBpsAtBet);
     event MarketClosed(uint256 timestamp);
     event ResolutionProposed(bytes32 indexed outcome, bytes32 indexed evidenceHash);
-    event ResolutionChallenged(address indexed challenger, bytes32 reason);
+    event ResolutionChallenged(address indexed challenger, bytes32 reason, uint256 bond);
     event MarketFinalized(bytes32 indexed winningOutcome, uint256 payoutPool);
     event MarketVoided(string reason);
     event ClaimExecuted(address indexed user, uint256 amount);
@@ -101,6 +112,7 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
         creator = marketCreator;
         referrer = marketReferrer;
         state = MarketState.PENDING_APPROVAL;
+        feeBpsSnapshot = IRegistry(registryAddress).totalFeeBps();
 
         for (uint256 i = 0; i < marketOutcomes.length; i++) {
             require(marketOutcomes[i] != bytes32(0), "Market: zero outcome");
@@ -134,9 +146,12 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
         require(!nonceUsed[msg.sender][nonce], "Market: nonce used");
 
         if (msg.sender == creator) {
-            uint256 newTotal = totalPool + amount;
-            uint256 newStake = userStakes[msg.sender][outcome] + amount;
-            require(newStake <= newTotal / 10, "Market: creator cap");
+            // Cap creator stake at 10% of the pre-bet pool. The check is skipped on an
+            // empty market so the creator can seed initial liquidity.
+            if (totalPool > 0) {
+                uint256 newStake = userStakes[msg.sender][outcome] + amount;
+                require(newStake <= totalPool / 10, "Market: creator cap");
+            }
         }
 
         bytes32 structHash = keccak256(abi.encode(BET_TYPEHASH, address(this), msg.sender, outcome, amount, nonce, deadline));
@@ -177,14 +192,30 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
     function challengeResolution(bytes32 reason) external onlyState(MarketState.PROPOSED) {
         require(block.timestamp < params.resolveTime + params.challengeWindowSeconds, "Market: challenge window closed");
         require(msg.sender != creator, "Market: creator cannot challenge");
+
+        uint256 bond = registry.challengeBondAmount();
+        require(bond > 0, "Market: zero challenge bond");
+
+        challenger = msg.sender;
+        challengeBond = bond;
+        registry.collateral().safeTransferFrom(msg.sender, address(this), bond);
+
         state = MarketState.CHALLENGED;
-        emit ResolutionChallenged(msg.sender, reason);
+        emit ResolutionChallenged(msg.sender, reason, bond);
     }
 
     function finalizeResolution() external onlyOracle {
         require(state == MarketState.PROPOSED || state == MarketState.CHALLENGED, "Market: not ready");
+        // When CHALLENGED the caller must hold both ORACLE_ROLE (enforced by the modifier above)
+        // and OPERATOR_ROLE — a deliberate dual-key requirement for disputed markets.
         if (state == MarketState.CHALLENGED) {
             require(registry.hasRole(registry.OPERATOR_ROLE(), msg.sender), "Market: challenged requires operator");
+            // Challenger's bond is slashed to treasury: the challenge did not prevent resolution.
+            if (challengeBond > 0) {
+                uint256 slashAmount = challengeBond;
+                challengeBond = 0;
+                registry.collateral().safeTransfer(registry.treasury(), slashAmount);
+            }
         }
         if (!feesCollected) {
             _collectFees();
@@ -196,6 +227,13 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
 
     function voidMarket(string calldata reason) external onlyOracle {
         require(state != MarketState.FINALIZED, "Market: finalized");
+        require(!feesCollected, "Market: fees collected");
+        // Refund challenge bond if one exists; the challenger correctly flagged a bad resolution.
+        if (challengeBond > 0) {
+            uint256 refundAmount = challengeBond;
+            challengeBond = 0;
+            registry.collateral().safeTransfer(challenger, refundAmount);
+        }
         state = MarketState.VOIDED;
         emit MarketVoided(reason);
     }
@@ -207,8 +245,18 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
         uint256 winningPool = outcomePools[winningOutcome];
         require(winningPool > 0, "Market: zero winning pool");
 
-        uint256 payout = (stake * distributablePool) / winningPool;
         hasClaimed[msg.sender] = true;
+        totalWinningStakeClaimed += stake;
+
+        uint256 payout;
+        if (totalWinningStakeClaimed == winningPool) {
+            // Last claimer: pay remaining pool to prevent dust being permanently locked.
+            payout = distributablePool - totalClaimed;
+        } else {
+            payout = (stake * distributablePool) / winningPool;
+        }
+        totalClaimed += payout;
+
         registry.collateral().safeTransfer(msg.sender, payout);
         emit ClaimExecuted(msg.sender, payout);
     }
@@ -230,8 +278,8 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
     function getOdds(bytes32 outcome) external view returns (uint256) {
         uint256 poolForOutcome = outcomePools[outcome];
         if (poolForOutcome == 0) return 0;
-        uint256 feeBps = registry.totalFeeBps();
-        uint256 poolAfterFees = (totalPool * (10000 - feeBps)) / 10000;
+        // Use fee BPS captured at market creation so odds remain consistent for bettors.
+        uint256 poolAfterFees = (totalPool * (10000 - feeBpsSnapshot)) / 10000;
         return (poolAfterFees * 1e18) / poolForOutcome;
     }
 

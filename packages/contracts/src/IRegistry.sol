@@ -13,6 +13,7 @@ interface IRegistry {
     function totalFeeBps() external view returns (uint256);
     function minBet() external view returns (uint256);
     function maxBet() external view returns (uint256);
+    function challengeBondAmount() external view returns (uint256);
     function checkSanction(address) external view returns (bool);
     function hasRole(bytes32, address) external view returns (bool);
     function ORACLE_ROLE() external view returns (bytes32);

@@ -102,6 +102,7 @@ export function handleMarketFinalized(event: MarketFinalized): void {
   market.status = 'FINALIZED';
   market.finalizedAt = event.block.timestamp;
   market.winningOutcome = event.address.toHexString() + '-' + event.params.winningOutcome.toHexString();
+  market.distributablePool = event.params.payoutPool;
   market.save();
 }
 

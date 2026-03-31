@@ -1,4 +1,4 @@
-type Market @entity {
+type Market @entity(immutable: false) {
   id: ID!
   marketId: String!
   creator: User
@@ -6,6 +6,7 @@ type Market @entity {
   bets: [Bet!]! @derivedFrom(field: "market")
   status: String!
   totalPool: BigInt!
+  distributablePool: BigInt
   createdAt: BigInt!
   closedAt: BigInt
   finalizedAt: BigInt
@@ -14,7 +15,7 @@ type Market @entity {
   voidReason: String
 }
 
-type Outcome @entity {
+type Outcome @entity(immutable: false) {
   id: ID!
   market: Market!
   outcomeKey: String!
@@ -24,7 +25,7 @@ type Outcome @entity {
   bets: [Bet!]! @derivedFrom(field: "outcome")
 }
 
-type Bet @entity {
+type Bet @entity(immutable: false) {
   id: ID!
   market: Market!
   outcome: Outcome!
@@ -36,7 +37,7 @@ type Bet @entity {
   claimedAt: BigInt
 }
 
-type User @entity {
+type User @entity(immutable: false) {
   id: ID!
   totalBets: BigInt!
   totalVolume: BigInt!
