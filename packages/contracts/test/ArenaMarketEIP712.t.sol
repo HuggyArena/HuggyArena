@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {Test} from "forge-std/Test.sol";
 import {ArenaRegistry} from "../src/ArenaRegistry.sol";
 import {ArenaMarket} from "../src/ArenaMarket.sol";
+import {MockUSDC} from "./helpers/MockUSDC.sol";
 
 contract ArenaMarketEIP712Test is Test {
     ArenaRegistry internal registry;
@@ -48,19 +49,5 @@ contract ArenaMarketEIP712Test is Test {
 
     function testBetTypehashExists() public view {
         assertTrue(market.BET_TYPEHASH() != bytes32(0));
-    }
-}
-
-contract MockUSDC {
-    string public name = "Mock USDC";
-    string public symbol = "mUSDC";
-    uint8 public decimals = 6;
-
-    function transferFrom(address, address, uint256) external pure returns (bool) {
-        return true;
-    }
-
-    function transfer(address, uint256) external pure returns (bool) {
-        return true;
     }
 }

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (forge test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install Forge dependencies
+        run: forge install --root packages/contracts
+
+      - name: Build contracts
+        run: forge build --root packages/contracts
+
+      - name: Run tests
+        run: forge test --root packages/contracts -v
