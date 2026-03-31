@@ -39,6 +39,17 @@ Pre-production engineering scaffold. Useful for implementation, review, and buil
 - Dispute reserve: 0.75%
 - Total default fee: 5.00%
 
+## Configuration notes
+
+Before deploying, update these placeholder values in your `.env` (copied from `.env.example`):
+
+- `ADMIN_ADDRESS` — set to your real admin or multisig wallet address.
+  The default (`0x0000000000000000000000000000000000000001`) is a placeholder and **must not** be used on mainnet.
+- `REGISTRY_ADDRESS` — set to the deployed `ArenaRegistry` contract address.
+  The default (`0x0000000000000000000000000000000000000000`) is the zero address and **will cause deployments to fail**.
+
+Use a multisig (e.g. Safe) for `ADMIN_ADDRESS` on mainnet — never a single private key.
+
 ## Next steps
 
 1. Install dependencies
