@@ -5,7 +5,7 @@ libs = ["lib"]
 script = "script"
 test = "test"
 solc = "0.8.26"
-evM_version = "paris"
+evm_version = "paris"
 optimizer = true
 optimizer_runs = 200
 fs_permissions = [{ access = "read", path = "./" }]
