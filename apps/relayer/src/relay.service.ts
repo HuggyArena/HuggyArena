@@ -103,14 +103,14 @@ export class RelayService implements OnApplicationShutdown {
 
   async submit(dto: SubmitRelayInput) {
     // Decode calldata and verify oracle signature before any other processing (#3).
-    this.decodeAndVerifyCalldata(dto);
-    await this.validateBalance(dto.userAddress, dto.amount);
+    const { nonce } = this.decodeAndVerifyCalldata(dto);
+    await this.validateBalance(dto.userAddress, dto.target, dto.amount);
     await this.validateDeadline(dto.deadline);
 
     // Idempotency key is based purely on stable parameters — no time bucketing (#16).
     const idempotencyKey = ethers.keccak256(
       ethers.toUtf8Bytes(
-        `${dto.userAddress}-${dto.target}-${dto.amount}-${dto.marketId}`,
+        `${dto.userAddress}-${dto.target}-${dto.amount}-${dto.marketId}-${nonce.toString()}-${dto.chainId}`,
       ),
     );
 
@@ -186,7 +186,7 @@ export class RelayService implements OnApplicationShutdown {
    * Issue #3: without this check a caller could obtain a valid oracle sig for 1 USDC
    * and relay calldata encoding an arbitrarily large amount.
    */
-  private decodeAndVerifyCalldata(dto: SubmitRelayInput): void {
+  private decodeAndVerifyCalldata(dto: SubmitRelayInput): { nonce: bigint } {
     let decoded: ethers.Result;
     try {
       decoded = PLACE_BET_IFACE.decodeFunctionData('placeBet', dto.data);
@@ -228,18 +228,25 @@ export class RelayService implements OnApplicationShutdown {
     if (recoveredSigner.toLowerCase() !== this.oracleWallet.address.toLowerCase()) {
       throw new BadRequestException('Oracle signature in calldata is invalid');
     }
+
+    return { nonce: nonce as bigint };
   }
 
-  private async validateBalance(user: string, amount: string) {
+  private async validateBalance(user: string, spender: string, amount: string) {
     const usdcAddress = process.env.USDC_ADDRESS;
     if (!usdcAddress) throw new BadRequestException('USDC address not configured');
     const usdc = new ethers.Contract(
       usdcAddress,
-      ['function balanceOf(address) view returns (uint256)'],
+      [
+        'function balanceOf(address) view returns (uint256)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+      ],
       this.rpcProvider,
     );
     const balance = await usdc.balanceOf(user);
     if (balance < BigInt(amount)) throw new BadRequestException('Insufficient USDC balance');
+    const allowance = await usdc.allowance(user, spender);
+    if (allowance < BigInt(amount)) throw new BadRequestException('Insufficient USDC allowance — user must approve the market contract');
   }
 
   private async pollForCompletion(dbId: string, taskId: string) {

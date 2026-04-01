@@ -24,6 +24,7 @@ export class RelayController {
 
   @Post('signature')
   @ApiOperation({ summary: 'Oracle signs bet parameters (pre-relay)' })
+  @UseGuards(SanctionsGuard)
   async getSignature(
     @Body() dto: { user: string; outcome: string; amount: string; nonce?: number; marketAddress: string; chainId: number },
   ) {

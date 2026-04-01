@@ -4,7 +4,7 @@ import { PrismaService } from '@arena/shared-prisma';
 @Injectable()
 export class SyncService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(SyncService.name);
-  private lastProcessedTimestamp = 0;
+  private lastProcessedBlock = 0;
   private readonly SYNC_INTERVAL_MS = 15000;
   private intervalId: NodeJS.Timeout | null = null;
   private isShuttingDown = false;
@@ -13,7 +13,7 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
 
   async onModuleInit() {
     await this.loadCursor();
-    this.logger.log(`Sync service initialized at cursor ${this.lastProcessedTimestamp}`);
+    this.logger.log(`Sync service initialized at cursor ${this.lastProcessedBlock}`);
 
     this.intervalId = setInterval(() => {
       if (this.isShuttingDown) return;
@@ -33,24 +33,24 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
     try {
       const state = await this.prisma.syncState.findUnique({ where: { id: 'default' } });
       if (state) {
-        this.lastProcessedTimestamp = Number(state.lastBlock);
+        this.lastProcessedBlock = Number(state.lastBlock);
       } else {
         await this.prisma.syncState.create({
           data: { id: 'default', lastBlock: BigInt(0) },
         });
-        this.lastProcessedTimestamp = 0;
+        this.lastProcessedBlock = 0;
       }
     } catch (error) {
       this.logger.error('Failed to load sync cursor', error as any);
-      this.lastProcessedTimestamp = 0;
+      this.lastProcessedBlock = 0;
     }
   }
 
-  private async saveCursor(timestamp: number) {
+  private async saveCursor(blockNumber: number) {
     await this.prisma.syncState.upsert({
       where: { id: 'default' },
-      update: { lastBlock: BigInt(timestamp) },
-      create: { id: 'default', lastBlock: BigInt(timestamp) },
+      update: { lastBlock: BigInt(blockNumber) },
+      create: { id: 'default', lastBlock: BigInt(blockNumber) },
     });
   }
 
@@ -58,22 +58,26 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
     const subgraphUrl = process.env.SUBGRAPH_URL;
     if (!subgraphUrl) return;
 
-    const query = `query SyncState($createdAfter: BigInt!) {
-      markets(where: { createdAt_gt: $createdAfter }, orderBy: createdAt, orderDirection: asc, first: 100) {
+    const query = `query SyncMarkets($afterBlock: BigInt!) {
+      markets(where: { blockNumber_gt: $afterBlock }, orderBy: blockNumber, orderDirection: asc, first: 100) {
         id
         marketId
         status
         totalPool
+        blockNumber
         createdAt
         creator { id }
         outcomes { id outcomeKey label poolAmount odds }
+      }
+      _meta {
+        block { number }
       }
     }`;
 
     const response = await fetch(subgraphUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, variables: { createdAfter: this.lastProcessedTimestamp } }),
+      body: JSON.stringify({ query, variables: { afterBlock: this.lastProcessedBlock } }),
     });
 
     if (!response.ok) throw new Error(`Subgraph HTTP error: ${response.status}`);
@@ -110,11 +114,11 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
       }
     });
 
-    const newTimestamp = Math.max(...markets.map((m: any) => Number(m.createdAt)));
-    if (newTimestamp > this.lastProcessedTimestamp) {
-      this.lastProcessedTimestamp = newTimestamp;
-      await this.saveCursor(newTimestamp);
-      this.logger.log(`Synced ${markets.length} markets; cursor=${newTimestamp}`);
+    const newBlock = Math.max(...markets.map((m: any) => Number(m.blockNumber)));
+    if (newBlock > this.lastProcessedBlock) {
+      this.lastProcessedBlock = newBlock;
+      await this.saveCursor(newBlock);
+      this.logger.log(`Synced ${markets.length} markets; cursor block=${newBlock}`);
     }
   }
 }

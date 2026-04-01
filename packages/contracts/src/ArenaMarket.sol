@@ -13,8 +13,6 @@ import {IRegistry} from "./IRegistry.sol";
 contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
-    uint256[50] private __gap;
-
     enum MarketState { PENDING_APPROVAL, OPEN, CLOSED, PROPOSED, CHALLENGED, FINALIZED, VOIDED }
 
     struct MarketParams {
@@ -64,6 +62,10 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
 
     // Fee BPS snapshot at market creation (#21)
     uint256 public feeBpsSnapshot;
+
+    // Storage gap — must remain the last storage variable for upgrade safety.
+    // New variables in future versions must be appended BEFORE this line.
+    uint256[50] private __gap;
 
     event MarketInitialized(string indexed marketId, address indexed creator);
     event MarketApproved(address indexed approver);
