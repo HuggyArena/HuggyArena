@@ -70,6 +70,9 @@ contract ArenaRegistryTest is Test {
     function testSetFeesSuccess() public {
         vm.prank(admin);
         registry.setFees(300, 150, 50, 100);
+        vm.warp(block.timestamp + registry.treasuryTimelock());
+        vm.prank(admin);
+        registry.executeFees();
         assertEq(registry.protocolFeeBps(), 300);
         assertEq(registry.creatorFeeBps(), 150);
         assertEq(registry.referralFeeBps(), 50);
@@ -79,7 +82,7 @@ contract ArenaRegistryTest is Test {
     function testSetFeesEmitsEvent() public {
         vm.prank(admin);
         vm.expectEmit(false, false, false, true);
-        emit ArenaRegistry.FeesUpdated(300, 150, 50, 100);
+        emit ArenaRegistry.FeesProposed(300, 150, 50, 100);
         registry.setFees(300, 150, 50, 100);
     }
 
@@ -100,6 +103,9 @@ contract ArenaRegistryTest is Test {
     function testSetTreasurySuccess() public {
         vm.prank(admin);
         registry.setTreasury(treasury2);
+        vm.warp(block.timestamp + registry.treasuryTimelock());
+        vm.prank(admin);
+        registry.executeTreasury();
         assertEq(registry.treasury(), treasury2);
     }
 
@@ -195,15 +201,16 @@ contract ArenaRegistryTest is Test {
     // ─── Creator bond ─────────────────────────────────────────────────────────
 
     function testLockCreatorBond() public {
+        uint256 bond = registry.creatorBondAmount();
         // Fund creator and approve
-        usdc.mint(creator, registry.creatorBondAmount());
+        usdc.mint(creator, bond);
         vm.prank(creator);
-        usdc.approve(address(registry), registry.creatorBondAmount());
+        usdc.approve(address(registry), bond);
 
         vm.prank(admin);
-        registry.lockCreatorBond(creator, registry.creatorBondAmount());
+        registry.lockCreatorBond(creator, bond);
 
-        assertEq(registry.creatorBondLocked(creator), registry.creatorBondAmount());
+        assertEq(registry.creatorBondLocked(creator), bond);
     }
 
     function testSlashCreatorBond() public {

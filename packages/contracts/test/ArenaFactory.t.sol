@@ -14,7 +14,7 @@ contract ArenaFactoryTest is Test {
     MockUSDC internal usdc;
 
     address internal admin = address(0xA11CE);
-    address internal oracle = address(0x0000000000000000000000000000000000000ACE);
+    address internal oracle = address(0x0A11CE);
     address internal creator = address(0xC0DE);
     address internal referrer = address(0xFEED);
 
@@ -78,6 +78,11 @@ contract ArenaFactoryTest is Test {
     }
 
     function testCreateMarketSuccess() public {
+        uint256 bond = registry.creatorBondAmount();
+        usdc.mint(creator, bond);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
+
         vm.prank(creator);
         address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
         assertTrue(proxy != address(0));
@@ -85,6 +90,11 @@ contract ArenaFactoryTest is Test {
     }
 
     function testCreateMarketEmitsEvent() public {
+        uint256 bond = registry.creatorBondAmount();
+        usdc.mint(creator, bond);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
+
         vm.prank(creator);
         vm.expectEmit(false, true, true, false);
         emit ArenaFactory.MarketCreated(address(0), "factory-test-1", creator, referrer);
@@ -92,6 +102,11 @@ contract ArenaFactoryTest is Test {
     }
 
     function testCreateMarketRegistersById() public {
+        uint256 bond = registry.creatorBondAmount();
+        usdc.mint(creator, bond);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
+
         vm.prank(creator);
         address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
         assertEq(registry.marketById("factory-test-1"), proxy);
@@ -105,10 +120,13 @@ contract ArenaFactoryTest is Test {
     }
 
     function testCreateMarketWithInitialLiquidity() public {
+        uint256 bond = registry.creatorBondAmount();
         uint256 liquidity = 1000 * 10 ** 6;
-        usdc.mint(creator, liquidity);
+        usdc.mint(creator, bond + liquidity);
         vm.prank(creator);
         usdc.approve(address(factory), liquidity);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
 
         vm.prank(creator);
         address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, liquidity);
@@ -120,7 +138,7 @@ contract ArenaFactoryTest is Test {
     function testCreateMarketWithBondPayment() public {
         // Test the auto-lock path: creator is approved but has no bond locked yet.
         // The factory will call registry.lockCreatorBond, which pulls from the creator.
-        address bondedCreator = address(0xB0ND);
+        address bondedCreator = address(0xB0D);
         uint256 bond = registry.creatorBondAmount();
 
         // Approve as creator (no bond locked yet)

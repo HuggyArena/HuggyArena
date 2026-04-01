@@ -27,7 +27,7 @@ contract ArenaFactory is AccessControl {
 
     constructor(address _registry, address _implementation) {
         registry = IFactoryRegistry(_registry);
-        beacon = new UpgradeableBeacon(_implementation, msg.sender);
+        beacon = new UpgradeableBeacon(_implementation, address(this));
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 

@@ -68,14 +68,14 @@ contract ArenaRegistry is AccessControl, Pausable {
         _grantRole(OPERATOR_ROLE, _admin);
     }
 
-    function setFees(uint256 _p, uint256 _c, uint256 _r, uint256 _d) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_p + _c + _r + _d <= MAX_FEE_BPS, "Registry: max fee");
-        pendingProtocolFeeBps = _p;
-        pendingCreatorFeeBps = _c;
-        pendingReferralFeeBps = _r;
-        pendingDisputeReserveBps = _d;
+    function setFees(uint256 protocolFeeBps_, uint256 creatorFeeBps_, uint256 referralFeeBps_, uint256 disputeReserveBps_) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(protocolFeeBps_ + creatorFeeBps_ + referralFeeBps_ + disputeReserveBps_ <= MAX_FEE_BPS, "Registry: max fee");
+        pendingProtocolFeeBps = protocolFeeBps_;
+        pendingCreatorFeeBps = creatorFeeBps_;
+        pendingReferralFeeBps = referralFeeBps_;
+        pendingDisputeReserveBps = disputeReserveBps_;
         feeChangeScheduledAt = block.timestamp;
-        emit FeesProposed(_p, _c, _r, _d);
+        emit FeesProposed(protocolFeeBps_, creatorFeeBps_, referralFeeBps_, disputeReserveBps_);
     }
 
     function executeFees() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -89,11 +89,11 @@ contract ArenaRegistry is AccessControl, Pausable {
         emit FeesUpdated(protocolFeeBps, creatorFeeBps, referralFeeBps, disputeReserveBps);
     }
 
-    function setTreasury(address _t) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_t != address(0), "Registry: zero treasury");
-        pendingTreasury = _t;
+    function setTreasury(address newTreasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newTreasury != address(0), "Registry: zero treasury");
+        pendingTreasury = newTreasury;
         treasuryChangeScheduledAt = block.timestamp;
-        emit TreasuryProposed(_t);
+        emit TreasuryProposed(newTreasury);
     }
 
     function executeTreasury() external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -114,15 +114,15 @@ contract ArenaRegistry is AccessControl, Pausable {
         emit ChallengeBondUpdated(amount);
     }
 
-    function setBeacon(address _b) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_b != address(0), "Registry: zero beacon");
-        beacon = _b;
-        emit BeaconUpdated(_b);
+    function setBeacon(address newBeacon) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(newBeacon != address(0), "Registry: zero beacon");
+        beacon = newBeacon;
+        emit BeaconUpdated(newBeacon);
     }
 
-    function setOracleModule(address _o) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        oracleModule = _o;
-        emit OracleModuleUpdated(_o);
+    function setOracleModule(address newOracleModule) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        oracleModule = newOracleModule;
+        emit OracleModuleUpdated(newOracleModule);
     }
 
     function registerMarket(address market, string calldata marketId) external onlyRole(OPERATOR_ROLE) {
@@ -132,36 +132,36 @@ contract ArenaRegistry is AccessControl, Pausable {
         emit MarketRegistered(market, marketId);
     }
 
-    function setCreatorStatus(address c, bool status) external onlyRole(OPERATOR_ROLE) {
-        isCreator[c] = status;
+    function setCreatorStatus(address creator, bool status) external onlyRole(OPERATOR_ROLE) {
+        isCreator[creator] = status;
     }
 
-    function lockCreatorBond(address c, uint256 amount) external onlyRole(OPERATOR_ROLE) {
-        creatorBondLocked[c] += amount;
-        collateral.safeTransferFrom(c, address(this), amount);
-        emit CreatorBondPosted(c, amount);
+    function lockCreatorBond(address creator, uint256 amount) external onlyRole(OPERATOR_ROLE) {
+        creatorBondLocked[creator] += amount;
+        collateral.safeTransferFrom(creator, address(this), amount);
+        emit CreatorBondPosted(creator, amount);
     }
 
-    function slashCreatorBond(address c, uint256 amount, string calldata reason) external onlyRole(OPERATOR_ROLE) {
-        require(amount <= creatorBondLocked[c], "Registry: insufficient");
-        creatorBondLocked[c] -= amount;
+    function slashCreatorBond(address creator, uint256 amount, string calldata reason) external onlyRole(OPERATOR_ROLE) {
+        require(amount <= creatorBondLocked[creator], "Registry: insufficient");
+        creatorBondLocked[creator] -= amount;
         collateral.safeTransfer(treasury, amount);
-        emit CreatorBondSlashed(c, amount, reason);
+        emit CreatorBondSlashed(creator, amount, reason);
     }
 
-    function releaseCreatorBond(address c, uint256 amount) external onlyRole(OPERATOR_ROLE) {
-        require(amount <= creatorBondLocked[c], "Registry: insufficient");
-        creatorBondLocked[c] -= amount;
-        collateral.safeTransfer(c, amount);
-        emit CreatorBondReleased(c, amount);
+    function releaseCreatorBond(address creator, uint256 amount) external onlyRole(OPERATOR_ROLE) {
+        require(amount <= creatorBondLocked[creator], "Registry: insufficient");
+        creatorBondLocked[creator] -= amount;
+        collateral.safeTransfer(creator, amount);
+        emit CreatorBondReleased(creator, amount);
     }
 
-    function setSanctionStatus(address a, bool s) external onlyRole(OPERATOR_ROLE) {
-        sanctioned[a] = s;
+    function setSanctionStatus(address target, bool isSanctioned) external onlyRole(OPERATOR_ROLE) {
+        sanctioned[target] = isSanctioned;
     }
 
-    function checkSanction(address a) external view returns (bool) {
-        return sanctioned[a];
+    function checkSanction(address target) external view returns (bool) {
+        return sanctioned[target];
     }
 
     function totalFeeBps() external view returns (uint256) {

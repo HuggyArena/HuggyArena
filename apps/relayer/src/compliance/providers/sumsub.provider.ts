@@ -41,47 +41,47 @@ export class SumsubProvider {
       throw new BadRequestException('Invalid signature');
     }
 
-    let payload: any;
+    let webhookPayload: any;
     try {
-      payload = JSON.parse(rawBody.toString('utf8'));
+      webhookPayload = JSON.parse(rawBody.toString('utf8'));
     } catch {
       throw new BadRequestException('Invalid JSON payload');
     }
 
-    if (!payload.externalUserId) throw new BadRequestException('Missing externalUserId');
+    if (!webhookPayload.externalUserId) throw new BadRequestException('Missing externalUserId');
 
     await this.prisma.user.update({
-      where: { id: payload.externalUserId },
+      where: { id: webhookPayload.externalUserId },
       data: {
-        kycStatus: payload.reviewResult?.reviewStatus ?? 'unknown',
-        kycLevel: payload.levelName ?? 'unknown',
+        kycStatus: webhookPayload.reviewResult?.reviewStatus ?? 'unknown',
+        kycLevel: webhookPayload.levelName ?? 'unknown',
       },
     });
 
-    this.logger.log(`Updated KYC status for user ${payload.externalUserId}`);
+    this.logger.log(`Updated KYC status for user ${webhookPayload.externalUserId}`);
   }
 
-  private sign(method: string, path: string, ts: number, body: string) {
+  private sign(method: string, path: string, timestamp: number, body: string) {
     return crypto
       .createHmac('sha256', this.secretKey)
-      .update(`${ts}${method.toUpperCase()}${path}${body}`)
+      .update(`${timestamp}${method.toUpperCase()}${path}${body}`)
       .digest('hex');
   }
 
-  private verifyWebhook(rawBody: Buffer, sig: string, payloadDigest?: string): boolean {
+  private verifyWebhook(rawBody: Buffer, webhookSignature: string, payloadDigest?: string): boolean {
     const calculated = crypto.createHmac('sha256', this.secretKey).update(rawBody).digest('hex');
 
-    const safeCompare = (a: string, b: string) => {
+    const safeCompare = (hexStringA: string, hexStringB: string) => {
       try {
-        const ab = Buffer.from(a, 'hex');
-        const bb = Buffer.from(b, 'hex');
-        return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+        const bufA = Buffer.from(hexStringA, 'hex');
+        const bufB = Buffer.from(hexStringB, 'hex');
+        return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
       } catch {
         return false;
       }
     };
 
     if (payloadDigest && !safeCompare(calculated, payloadDigest)) return false;
-    return safeCompare(calculated, sig);
+    return safeCompare(calculated, webhookSignature);
   }
 }

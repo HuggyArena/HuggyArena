@@ -7,10 +7,10 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IRegistry} from "./IRegistry.sol";
 
-contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgradeable, PausableUpgradeable {
+contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     enum MarketState { PENDING_APPROVAL, OPEN, CLOSED, PROPOSED, CHALLENGED, FINALIZED, VOIDED }
@@ -106,7 +106,6 @@ contract ArenaMarket is Initializable, ReentrancyGuardUpgradeable, EIP712Upgrade
         require(marketParams.closeTime <= marketParams.resolveTime, "Market: bad close/resolve");
 
         __EIP712_init("ArenaMarket", "1");
-        __ReentrancyGuard_init();
         __Pausable_init();
 
         registry = IRegistry(registryAddress);

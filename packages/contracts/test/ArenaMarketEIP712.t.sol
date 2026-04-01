@@ -2,13 +2,15 @@
 pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {BeaconProxy} from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {ArenaRegistry} from "../src/ArenaRegistry.sol";
 import {ArenaMarket} from "../src/ArenaMarket.sol";
-import {MockUSDC} from "./helpers/MockUSDC.sol";
 
 contract ArenaMarketEIP712Test is Test {
     ArenaRegistry internal registry;
     ArenaMarket internal market;
+    UpgradeableBeacon internal beacon;
 
     address internal admin = address(0xA11CE);
     address internal user = address(0xBEEF);
@@ -23,7 +25,8 @@ contract ArenaMarketEIP712Test is Test {
         vm.startPrank(admin);
         registry = new ArenaRegistry(address(new MockUSDC()), admin);
         registry.grantRole(registry.ORACLE_ROLE(), oracle);
-        market = new ArenaMarket();
+        ArenaMarket implementation = new ArenaMarket();
+        beacon = new UpgradeableBeacon(address(implementation), address(this));
 
         bytes32[] memory outcomes = new bytes32[](2);
         outcomes[0] = OUTCOME_YES;
@@ -42,7 +45,11 @@ contract ArenaMarketEIP712Test is Test {
             challengeWindowSeconds: 1 days
         });
 
-        market.initialize(address(registry), params, outcomes, admin, address(0));
+        BeaconProxy proxy = new BeaconProxy(
+            address(beacon),
+            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params, outcomes, admin, address(0))
+        );
+        market = ArenaMarket(address(proxy));
         vm.stopPrank();
 
         vm.prank(oracle);
@@ -134,8 +141,11 @@ contract ArenaMarketEIP712Test is Test {
             challengeWindowSeconds: 1 days
         });
 
-        ArenaMarket market2 = new ArenaMarket();
-        market2.initialize(address(registry), params2, outcomes, admin, address(0));
+        BeaconProxy proxy2 = new BeaconProxy(
+            address(beacon),
+            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params2, outcomes, admin, address(0))
+        );
+        ArenaMarket market2 = ArenaMarket(address(proxy2));
         vm.prank(oracle);
         market2.approveMarket();
 
