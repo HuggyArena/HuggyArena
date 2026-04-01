@@ -88,7 +88,7 @@ export class RelayService implements OnApplicationShutdown {
       verifyingContract: dto.marketAddress,
     };
 
-    const value = {
+    const betTypedDataValue = {
       market: dto.marketAddress,
       user: dto.user,
       outcome: dto.outcome,
@@ -97,7 +97,7 @@ export class RelayService implements OnApplicationShutdown {
       deadline,
     };
 
-    const signature = await this.oracleWallet.signTypedData(domain, BET_TYPES, value);
+    const signature = await this.oracleWallet.signTypedData(domain, BET_TYPES, betTypedDataValue);
     return { nonce, signature, deadline, marketAddress: dto.marketAddress };
   }
 
@@ -147,8 +147,8 @@ export class RelayService implements OnApplicationShutdown {
       },
     });
 
-    this.pollForCompletion(tx.id, relayResult.taskId).catch((err) => {
-      this.logger.error('Relay polling failed', err as any);
+    this.pollForCompletion(tx.id, relayResult.taskId).catch((pollingError) => {
+      this.logger.error('Relay polling failed', pollingError as any);
     });
 
     return {
@@ -209,7 +209,7 @@ export class RelayService implements OnApplicationShutdown {
       chainId: dto.chainId,
       verifyingContract: dto.target,
     };
-    const value = {
+    const betTypedDataValue = {
       market: dto.target,
       user: dto.userAddress,
       outcome: outcome as string,
@@ -220,7 +220,7 @@ export class RelayService implements OnApplicationShutdown {
 
     let recoveredSigner: string;
     try {
-      recoveredSigner = ethers.verifyTypedData(domain, BET_TYPES, value, sig as string);
+      recoveredSigner = ethers.verifyTypedData(domain, BET_TYPES, betTypedDataValue, sig as string);
     } catch {
       throw new BadRequestException('Oracle signature in calldata is malformed');
     }
@@ -235,7 +235,7 @@ export class RelayService implements OnApplicationShutdown {
   private async validateBalance(user: string, spender: string, amount: string) {
     const usdcAddress = process.env.USDC_ADDRESS;
     if (!usdcAddress) throw new BadRequestException('USDC address not configured');
-    const usdc = new ethers.Contract(
+    const usdcTokenContract = new ethers.Contract(
       usdcAddress,
       [
         'function balanceOf(address) view returns (uint256)',
@@ -243,9 +243,9 @@ export class RelayService implements OnApplicationShutdown {
       ],
       this.rpcProvider,
     );
-    const balance = await usdc.balanceOf(user);
+    const balance = await usdcTokenContract.balanceOf(user);
     if (balance < BigInt(amount)) throw new BadRequestException('Insufficient USDC balance');
-    const allowance = await usdc.allowance(user, spender);
+    const allowance = await usdcTokenContract.allowance(user, spender);
     if (allowance < BigInt(amount)) throw new BadRequestException('Insufficient USDC allowance — user must approve the market contract');
   }
 

@@ -17,8 +17,8 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
 
     this.intervalId = setInterval(() => {
       if (this.isShuttingDown) return;
-      this.syncFromSubgraph().catch((err) => {
-        this.logger.error('Subgraph sync failed', err as any);
+      this.syncFromSubgraph().catch((syncError) => {
+        this.logger.error('Subgraph sync failed', syncError as any);
       });
     }, this.SYNC_INTERVAL_MS);
   }
@@ -81,10 +81,10 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
     });
 
     if (!response.ok) throw new Error(`Subgraph HTTP error: ${response.status}`);
-    const json: any = await response.json();
-    if (json.errors) throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
+    const subgraphResponse: any = await response.json();
+    if (subgraphResponse.errors) throw new Error(`GraphQL errors: ${JSON.stringify(subgraphResponse.errors)}`);
 
-    const markets = json?.data?.markets || [];
+    const markets = subgraphResponse?.data?.markets || [];
     if (markets.length === 0) return;
 
     await this.prisma.$transaction(async (tx) => {
@@ -114,7 +114,7 @@ export class SyncService implements OnModuleInit, OnApplicationShutdown {
       }
     });
 
-    const newBlock = Math.max(...markets.map((m: any) => Number(m.blockNumber)));
+    const newBlock = Math.max(...markets.map((market: any) => Number(market.blockNumber)));
     if (newBlock > this.lastProcessedBlock) {
       this.lastProcessedBlock = newBlock;
       await this.saveCursor(newBlock);

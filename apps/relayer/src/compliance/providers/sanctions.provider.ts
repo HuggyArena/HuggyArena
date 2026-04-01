@@ -24,7 +24,7 @@ export class SanctionsProvider {
   }
 
   async batchScreen(addresses: string[]) {
-    return Promise.all(addresses.map((a) => this.screenAddress(a)));
+    return Promise.all(addresses.map((address) => this.screenAddress(address)));
   }
 
   private async screenTRM(address: string): Promise<SanctionsScreeningResult> {
@@ -37,12 +37,12 @@ export class SanctionsProvider {
         },
         body: JSON.stringify({ address, network: 'polygon' }),
       });
-      const data: any = await response.json();
+      const trmApiResponse: any = await response.json();
       return {
         address,
-        risk: data?.riskScore > 70 ? 'HIGH' : data?.riskScore > 30 ? 'MEDIUM' : 'NONE',
-        categories: data?.flags?.map((f: any) => f.type) || [],
-        entities: data?.identifiedEntities || [],
+        risk: trmApiResponse?.riskScore > 70 ? 'HIGH' : trmApiResponse?.riskScore > 30 ? 'MEDIUM' : 'NONE',
+        categories: trmApiResponse?.flags?.map((flag: any) => flag.type) || [],
+        entities: trmApiResponse?.identifiedEntities || [],
       };
     } catch (error) {
       this.logger.error(`TRM screening failed for ${address}`, error as any);
@@ -60,12 +60,12 @@ export class SanctionsProvider {
         },
         body: JSON.stringify({ address }),
       });
-      const data: any = await response.json();
+      const chainalysisApiResponse: any = await response.json();
       return {
         address,
-        risk: data?.sanctions?.length ? 'SEVERE' : 'NONE',
-        categories: data?.identifications?.map((i: any) => i.category) || [],
-        entities: data?.identifications?.map((i: any) => i.entity) || [],
+        risk: chainalysisApiResponse?.sanctions?.length ? 'SEVERE' : 'NONE',
+        categories: chainalysisApiResponse?.identifications?.map((identification: any) => identification.category) || [],
+        entities: chainalysisApiResponse?.identifications?.map((identification: any) => identification.entity) || [],
       };
     } catch (error) {
       this.logger.error(`Chainalysis screening failed for ${address}`, error as any);
