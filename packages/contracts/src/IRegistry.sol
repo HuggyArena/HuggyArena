@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IRegistry {
     function collateral() external view returns (IERC20);
     function treasury() external view returns (address);
+    function oracleModule() external view returns (address);
     function protocolFeeBps() external view returns (uint256);
     function creatorFeeBps() external view returns (uint256);
     function referralFeeBps() external view returns (uint256);
@@ -14,6 +15,8 @@ interface IRegistry {
     function minBet() external view returns (uint256);
     function maxBet() external view returns (uint256);
     function challengeBondAmount() external view returns (uint256);
+    /// @notice Returns true when `token` is an approved collateral for new markets.
+    function isWhitelistedCollateral(address token) external view returns (bool);
     function checkSanction(address) external view returns (bool);
     function hasRole(bytes32, address) external view returns (bool);
     function ORACLE_ROLE() external view returns (bytes32);

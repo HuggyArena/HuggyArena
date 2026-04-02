@@ -84,7 +84,7 @@ contract ArenaFactoryTest is Test {
         usdc.approve(address(registry), bond);
 
         vm.prank(creator);
-        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
+        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0, address(0));
         assertTrue(proxy != address(0));
         assertTrue(registry.isMarket(proxy));
     }
@@ -98,7 +98,7 @@ contract ArenaFactoryTest is Test {
         vm.prank(creator);
         vm.expectEmit(false, true, true, false);
         emit ArenaFactory.MarketCreated(address(0), "factory-test-1", creator, referrer);
-        factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
+        factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0, address(0));
     }
 
     function testCreateMarketRegistersById() public {
@@ -108,7 +108,7 @@ contract ArenaFactoryTest is Test {
         usdc.approve(address(registry), bond);
 
         vm.prank(creator);
-        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
+        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0, address(0));
         assertEq(registry.marketById("factory-test-1"), proxy);
     }
 
@@ -116,7 +116,7 @@ contract ArenaFactoryTest is Test {
         address nobody = address(0xDEAD);
         vm.prank(nobody);
         vm.expectRevert("Factory: bond");
-        factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0);
+        factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, 0, address(0));
     }
 
     function testCreateMarketWithInitialLiquidity() public {
@@ -129,7 +129,7 @@ contract ArenaFactoryTest is Test {
         usdc.approve(address(registry), bond);
 
         vm.prank(creator);
-        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, liquidity);
+        address proxy = factory.createMarket(_defaultParams(), _defaultOutcomes(), referrer, liquidity, address(0));
 
         // Liquidity should have been transferred to the proxy
         assertEq(usdc.balanceOf(proxy), liquidity);
@@ -164,7 +164,7 @@ contract ArenaFactoryTest is Test {
         });
 
         vm.prank(bondedCreator);
-        address proxy = factory.createMarket(params, _defaultOutcomes(), address(0), 0);
+        address proxy = factory.createMarket(params, _defaultOutcomes(), address(0), 0, address(0));
         assertTrue(proxy != address(0));
         assertEq(registry.creatorBondLocked(bondedCreator), bond);
     }
@@ -183,5 +183,54 @@ contract ArenaFactoryTest is Test {
         vm.prank(creator);
         vm.expectRevert();
         factory.upgradeBeacon(address(newImpl));
+    }
+
+    // ─── Multi-collateral support ─────────────────────────────────────────────
+
+    function testCreateMarketWithAltCollateral() public {
+        // Deploy an alternate collateral token (simulating wstETH / rETH / aUSDC).
+        MockUSDC altToken = new MockUSDC();
+
+        // Whitelist the alternate collateral in the registry.
+        vm.prank(admin);
+        registry.addCollateral(address(altToken));
+
+        uint256 bond = registry.creatorBondAmount();
+        usdc.mint(creator, bond);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
+
+        ArenaMarket.MarketParams memory params = ArenaMarket.MarketParams({
+            marketId: "alt-collateral-market",
+            ipfsHash: "ipfs://alt",
+            sourcePrimary: bytes32("hf"),
+            sourceFallback: bytes32("mirror"),
+            tieRule: bytes32("void"),
+            voidRule: bytes32("void"),
+            openTime: block.timestamp,
+            closeTime: block.timestamp + 1 days,
+            resolveTime: block.timestamp + 2 days,
+            challengeWindowSeconds: 1 days
+        });
+
+        vm.prank(creator);
+        address proxy = factory.createMarket(params, _defaultOutcomes(), address(0), 0, address(altToken));
+
+        assertTrue(proxy != address(0));
+        // The market's collateral should be the alternate token.
+        assertEq(address(ArenaMarket(proxy).marketCollateral()), address(altToken));
+    }
+
+    function testCreateMarketRevertsForNonWhitelistedCollateral() public {
+        MockUSDC altToken = new MockUSDC(); // NOT whitelisted
+
+        uint256 bond = registry.creatorBondAmount();
+        usdc.mint(creator, bond);
+        vm.prank(creator);
+        usdc.approve(address(registry), bond);
+
+        vm.prank(creator);
+        vm.expectRevert("Factory: collateral not whitelisted");
+        factory.createMarket(_defaultParams(), _defaultOutcomes(), address(0), 0, address(altToken));
     }
 }

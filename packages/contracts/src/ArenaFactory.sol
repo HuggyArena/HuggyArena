@@ -15,6 +15,7 @@ interface IFactoryRegistry {
     function lockCreatorBond(address, uint256) external;
     function registerMarket(address, string calldata) external;
     function collateral() external view returns (IERC20);
+    function isWhitelistedCollateral(address) external view returns (bool);
 }
 
 contract ArenaFactory is AccessControl {
@@ -35,12 +36,19 @@ contract ArenaFactory is AccessControl {
         ArenaMarket.MarketParams calldata params,
         bytes32[] calldata outcomes,
         address referrer,
-        uint256 initialLiquidity
+        uint256 initialLiquidity,
+        address collateralToken
     ) external returns (address proxy) {
         require(
             registry.isCreator(msg.sender) || registry.creatorBondLocked(msg.sender) >= registry.creatorBondAmount(),
             "Factory: bond"
         );
+
+        // Resolve and validate the collateral address up-front so the error surfaces here.
+        address resolvedCollateral = collateralToken != address(0)
+            ? collateralToken
+            : address(registry.collateral());
+        require(registry.isWhitelistedCollateral(resolvedCollateral), "Factory: collateral not whitelisted");
 
         if (registry.creatorBondLocked(msg.sender) == 0) {
             // NOTE: sender must approve the REGISTRY (not this factory) for creatorBondAmount
@@ -56,7 +64,8 @@ contract ArenaFactory is AccessControl {
                 params,
                 outcomes,
                 msg.sender,
-                referrer
+                referrer,
+                resolvedCollateral
             )
         );
 
@@ -64,7 +73,7 @@ contract ArenaFactory is AccessControl {
         registry.registerMarket(proxy, params.marketId);
 
         if (initialLiquidity > 0) {
-            registry.collateral().safeTransferFrom(msg.sender, proxy, initialLiquidity);
+            IERC20(resolvedCollateral).safeTransferFrom(msg.sender, proxy, initialLiquidity);
         }
 
         emit MarketCreated(proxy, params.marketId, msg.sender, referrer);

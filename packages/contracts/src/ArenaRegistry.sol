@@ -46,6 +46,10 @@ contract ArenaRegistry is AccessControl, Pausable {
     mapping(address => uint256) public creatorBondLocked;
     mapping(string => address) public marketById;
     mapping(address => bool) public sanctioned;
+    /// @notice Collateral tokens approved for use in new markets.
+    /// The primary `collateral` token is whitelisted at construction time.
+    /// Operators may add yield-bearing variants (wstETH, rETH, aUSDC, etc.).
+    mapping(address => bool) public whitelistedCollaterals;
 
     event FeesUpdated(uint256 protocol, uint256 creator, uint256 referral, uint256 dispute);
     event FeesProposed(uint256 protocol, uint256 creator, uint256 referral, uint256 dispute);
@@ -59,6 +63,8 @@ contract ArenaRegistry is AccessControl, Pausable {
     event CreatorBondPosted(address indexed creator, uint256 amount);
     event CreatorBondSlashed(address indexed creator, uint256 amount, string reason);
     event CreatorBondReleased(address indexed creator, uint256 amount);
+    event CollateralAdded(address indexed token);
+    event CollateralRemoved(address indexed token);
 
     constructor(address _collateral, address _admin) {
         require(_collateral != address(0), "Registry: zero collateral");
@@ -66,6 +72,9 @@ contract ArenaRegistry is AccessControl, Pausable {
         treasury = _admin;
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(OPERATOR_ROLE, _admin);
+        // Primary collateral is whitelisted by default.
+        whitelistedCollaterals[_collateral] = true;
+        emit CollateralAdded(_collateral);
     }
 
     function setFees(uint256 protocolFeeBps_, uint256 creatorFeeBps_, uint256 referralFeeBps_, uint256 disputeReserveBps_) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -162,6 +171,29 @@ contract ArenaRegistry is AccessControl, Pausable {
 
     function checkSanction(address target) external view returns (bool) {
         return sanctioned[target];
+    }
+
+    /// @notice Whitelist a collateral token so it can be used in new markets.
+    /// @dev Yield-bearing variants (wstETH, rETH, aUSDC, etc.) should be added here
+    ///      after due diligence on the token's safety and price-feed availability.
+    function addCollateral(address token) external onlyRole(OPERATOR_ROLE) {
+        require(token != address(0), "Registry: zero token");
+        require(!whitelistedCollaterals[token], "Registry: already whitelisted");
+        whitelistedCollaterals[token] = true;
+        emit CollateralAdded(token);
+    }
+
+    /// @notice Remove a collateral token from the whitelist.
+    /// @dev Existing markets are unaffected; only new market creation is blocked.
+    function removeCollateral(address token) external onlyRole(OPERATOR_ROLE) {
+        require(whitelistedCollaterals[token], "Registry: not whitelisted");
+        whitelistedCollaterals[token] = false;
+        emit CollateralRemoved(token);
+    }
+
+    /// @notice Returns true when `token` is approved for use in new markets.
+    function isWhitelistedCollateral(address token) external view returns (bool) {
+        return whitelistedCollaterals[token];
     }
 
     function totalFeeBps() external view returns (uint256) {

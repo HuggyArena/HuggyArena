@@ -246,4 +246,63 @@ contract ArenaRegistryTest is Test {
 
         assertEq(registry.creatorBondLocked(creator), 0);
     }
+
+    // ─── Multi-collateral whitelist ───────────────────────────────────────────
+
+    function testPrimaryCollateralWhitelistedOnDeploy() public view {
+        assertTrue(registry.isWhitelistedCollateral(address(usdc)));
+    }
+
+    function testAddCollateralSuccess() public {
+        MockUSDC alt = new MockUSDC();
+        vm.prank(admin);
+        vm.expectEmit(true, false, false, false);
+        emit ArenaRegistry.CollateralAdded(address(alt));
+        registry.addCollateral(address(alt));
+        assertTrue(registry.isWhitelistedCollateral(address(alt)));
+    }
+
+    function testAddCollateralRevertsForNonOperator() public {
+        MockUSDC alt = new MockUSDC();
+        vm.prank(creator);
+        vm.expectRevert();
+        registry.addCollateral(address(alt));
+    }
+
+    function testAddCollateralRevertsForZeroAddress() public {
+        vm.prank(admin);
+        vm.expectRevert("Registry: zero token");
+        registry.addCollateral(address(0));
+    }
+
+    function testAddCollateralRevertsIfAlreadyWhitelisted() public {
+        vm.prank(admin);
+        vm.expectRevert("Registry: already whitelisted");
+        registry.addCollateral(address(usdc));
+    }
+
+    function testRemoveCollateralSuccess() public {
+        MockUSDC alt = new MockUSDC();
+        vm.startPrank(admin);
+        registry.addCollateral(address(alt));
+        vm.expectEmit(true, false, false, false);
+        emit ArenaRegistry.CollateralRemoved(address(alt));
+        registry.removeCollateral(address(alt));
+        vm.stopPrank();
+        assertFalse(registry.isWhitelistedCollateral(address(alt)));
+    }
+
+    function testRemoveCollateralRevertsIfNotWhitelisted() public {
+        MockUSDC alt = new MockUSDC();
+        vm.prank(admin);
+        vm.expectRevert("Registry: not whitelisted");
+        registry.removeCollateral(address(alt));
+    }
+
+    function testRemoveCollateralRevertsForNonOperator() public {
+        vm.prank(creator);
+        vm.expectRevert();
+        registry.removeCollateral(address(usdc));
+    }
 }
+

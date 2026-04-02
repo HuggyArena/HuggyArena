@@ -63,9 +63,13 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
     // Fee BPS snapshot at market creation (#21)
     uint256 public feeBpsSnapshot;
 
+    // Per-market collateral token — allows yield-bearing assets (wstETH, rETH, aUSDC, etc.)
+    // Set during initialize(); must be whitelisted in the registry.
+    IERC20 public marketCollateral;
+
     // Storage gap — must remain the last storage variable for upgrade safety.
     // New variables in future versions must be appended BEFORE this line.
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     event MarketInitialized(string indexed marketId, address indexed creator);
     event MarketApproved(address indexed approver);
@@ -97,7 +101,8 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
         MarketParams calldata marketParams,
         bytes32[] calldata marketOutcomes,
         address marketCreator,
-        address marketReferrer
+        address marketReferrer,
+        address collateralToken
     ) external initializer {
         require(registryAddress != address(0), "Market: zero registry");
         require(marketCreator != address(0), "Market: zero creator");
@@ -105,10 +110,20 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
         require(marketParams.openTime < marketParams.closeTime, "Market: bad open/close");
         require(marketParams.closeTime <= marketParams.resolveTime, "Market: bad close/resolve");
 
+        // Resolve collateral: use override if provided, else fall back to registry default.
+        address resolvedCollateral = collateralToken != address(0)
+            ? collateralToken
+            : address(IRegistry(registryAddress).collateral());
+        require(
+            IRegistry(registryAddress).isWhitelistedCollateral(resolvedCollateral),
+            "Market: collateral not whitelisted"
+        );
+
         __EIP712_init("ArenaMarket", "1");
         __Pausable_init();
 
         registry = IRegistry(registryAddress);
+        marketCollateral = IERC20(resolvedCollateral);
         params = marketParams;
         creator = marketCreator;
         referrer = marketReferrer;
@@ -162,8 +177,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
 
         nonceUsed[msg.sender][nonce] = true;
 
-        IERC20 collateralToken = registry.collateral();
-        collateralToken.safeTransferFrom(msg.sender, address(this), amount);
+        marketCollateral.safeTransferFrom(msg.sender, address(this), amount);
 
         userStakes[msg.sender][outcome] += amount;
         outcomePools[outcome] += amount;
@@ -199,7 +213,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
 
         challenger = msg.sender;
         challengeBond = bond;
-        registry.collateral().safeTransferFrom(msg.sender, address(this), bond);
+        marketCollateral.safeTransferFrom(msg.sender, address(this), bond);
 
         state = MarketState.CHALLENGED;
         emit ResolutionChallenged(msg.sender, reason, bond);
@@ -215,7 +229,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
             if (challengeBond > 0) {
                 uint256 slashAmount = challengeBond;
                 challengeBond = 0;
-                registry.collateral().safeTransfer(registry.treasury(), slashAmount);
+                marketCollateral.safeTransfer(registry.treasury(), slashAmount);
             }
         }
         if (!feesCollected) {
@@ -233,7 +247,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
         if (challengeBond > 0) {
             uint256 refundAmount = challengeBond;
             challengeBond = 0;
-            registry.collateral().safeTransfer(challenger, refundAmount);
+            marketCollateral.safeTransfer(challenger, refundAmount);
         }
         state = MarketState.VOIDED;
         emit MarketVoided(reason);
@@ -258,7 +272,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
         }
         totalClaimed += payout;
 
-        registry.collateral().safeTransfer(msg.sender, payout);
+        marketCollateral.safeTransfer(msg.sender, payout);
         emit ClaimExecuted(msg.sender, payout);
     }
 
@@ -273,7 +287,7 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
             }
         }
         require(totalRefund > 0, "Market: no stake");
-        registry.collateral().safeTransfer(msg.sender, totalRefund);
+        marketCollateral.safeTransfer(msg.sender, totalRefund);
     }
 
     function getOdds(bytes32 outcome) external view returns (uint256) {
@@ -296,14 +310,13 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
 
         distributablePool = totalPool - protocol - creatorFee - referralFee - reserve;
 
-        IERC20 collateralToken = registry.collateral();
-        collateralToken.safeTransfer(registry.treasury(), protocol + reserve);
-        collateralToken.safeTransfer(creator, creatorFee);
+        marketCollateral.safeTransfer(registry.treasury(), protocol + reserve);
+        marketCollateral.safeTransfer(creator, creatorFee);
 
         if (referrer != address(0)) {
-            collateralToken.safeTransfer(referrer, referralFee);
+            marketCollateral.safeTransfer(referrer, referralFee);
         } else {
-            collateralToken.safeTransfer(registry.treasury(), referralFee);
+            marketCollateral.safeTransfer(registry.treasury(), referralFee);
         }
 
         feesCollected = true;

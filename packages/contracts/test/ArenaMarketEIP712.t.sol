@@ -47,7 +47,7 @@ contract ArenaMarketEIP712Test is Test {
 
         BeaconProxy proxy = new BeaconProxy(
             address(beacon),
-            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params, outcomes, admin, address(0))
+            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params, outcomes, admin, address(0), address(0))
         );
         market = ArenaMarket(address(proxy));
         vm.stopPrank();
@@ -143,7 +143,7 @@ contract ArenaMarketEIP712Test is Test {
 
         BeaconProxy proxy2 = new BeaconProxy(
             address(beacon),
-            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params2, outcomes, admin, address(0))
+            abi.encodeWithSelector(ArenaMarket.initialize.selector, address(registry), params2, outcomes, admin, address(0), address(0))
         );
         ArenaMarket market2 = ArenaMarket(address(proxy2));
         vm.prank(oracle);
