@@ -14,3 +14,5 @@ artifacts
 broadcast
 out
 typechain-types
+packages/contracts/lib/
+packages/contracts/cache/
