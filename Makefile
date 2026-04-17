@@ -1,4 +1,4 @@
-.PHONY: install prisma build typecheck contracts subgraph relayer indexer bootstrap test db db-stop lint
+.PHONY: install prisma build typecheck contracts subgraph relayer indexer bootstrap test db db-stop lint forge-deps
 
 install:
 	pnpm install
@@ -31,7 +31,12 @@ relayer:
 indexer:
 	pnpm indexer:dev
 
-bootstrap: install contracts prisma build
+forge-deps:
+	cd packages/contracts && [ -d lib/forge-std ] || forge install foundry-rs/forge-std --no-git
+	cd packages/contracts && [ -d lib/openzeppelin-contracts ] || forge install OpenZeppelin/openzeppelin-contracts --no-git
+	cd packages/contracts && [ -d lib/openzeppelin-contracts-upgradeable ] || forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-git
+
+bootstrap: install forge-deps contracts prisma build
 	@echo "Bootstrap complete — all workspaces built."
 
 db:
