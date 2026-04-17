@@ -271,6 +271,17 @@ export class RelayService implements OnApplicationShutdown {
       attempts += 1;
       try {
         const status = await this.gelato.getTaskStatus(taskId);
+        if (!status) {
+          // Gelato returned no status yet; time out after the 60-attempt ceiling.
+          if (attempts > 60) {
+            await this.prisma.relayedTransaction.update({
+              where: { id: dbId },
+              data: { status: 'FAILED', error: 'Polling timeout exceeded (no status from Gelato)' },
+            });
+            this.clearTimer(taskId, safetyTimeout);
+          }
+          return;
+        }
         if (status.taskState === 'ExecSuccess') {
           await this.prisma.relayedTransaction.update({
             where: { id: dbId },
