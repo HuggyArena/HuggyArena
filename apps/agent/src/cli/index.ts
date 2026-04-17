@@ -77,9 +77,12 @@ program
   .command("mcp")
   .description("Run the huggyarena-mcp stdio MCP server (for Claude Desktop / Cursor / Code).")
   .action(async () => {
-    // Delegate to the dedicated entrypoint so the process is minimal and
-    // the stdio contract is preserved.
-    await import("../mcp-server/index");
+    // Invoke the server entrypoint explicitly — a bare `import()` only
+    // executes module-level code, and the server's main() is guarded by
+    // `require.main === module` which is false on dynamic import, so we
+    // have to call main() ourselves.
+    const { main } = await import("../mcp-server/index");
+    await main();
   });
 
 program

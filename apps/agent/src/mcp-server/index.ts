@@ -11,7 +11,7 @@ import { startHuggyArenaMcpServer } from "./server";
  * Must not print to stdout — MCP uses stdout for the JSON-RPC transport.
  * All logging goes to stderr.
  */
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   process.stderr.write("[huggyarena-mcp] starting stdio server...\n");
   const { server } = await startHuggyArenaMcpServer();
   process.stderr.write(
@@ -32,6 +32,9 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
+// Invoke main() when this module is the process entrypoint. The CLI's `mcp`
+// subcommand calls main() directly (dynamic import from ../cli/index.ts), so
+// don't gate on require.main there.
 if (require.main === module) {
   main().catch((err) => {
     process.stderr.write(`[huggyarena-mcp] fatal: ${(err as Error).stack ?? err}\n`);

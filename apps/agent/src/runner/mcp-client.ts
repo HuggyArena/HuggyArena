@@ -1,4 +1,6 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { type ChildProcessWithoutNullStreams } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -67,17 +69,22 @@ export async function attachStdioMcp(spec: McpServerSpec): Promise<AttachedMcp> 
  * Used by the in-process agent loop so a chat session gets the tools for free.
  */
 export function selfMcpSpec(): McpServerSpec {
-  // `tsx src/mcp-server/index.ts` works in dev; in built mode we could point
-  // at `dist/mcp-server/index.js`. We probe for the built artefact and fall
-  // back to tsx so both modes work.
+  // Prefer the built .js artefact (production); fall back to running the .ts
+  // source through tsx (dev mode). Probing via fs.existsSync is robust because
+  // require.resolve would throw for either path in the wrong mode.
+  const builtPath = path.join(__dirname, "..", "mcp-server", "index.js");
+  if (fs.existsSync(builtPath)) {
+    return {
+      id: "huggyarena",
+      command: process.execPath,
+      args: [builtPath],
+    };
+  }
+  const srcPath = path.join(__dirname, "..", "mcp-server", "index.ts");
   return {
     id: "huggyarena",
     command: process.execPath,
-    args: [
-      "--import",
-      "tsx",
-      require.resolve("../mcp-server/index.ts"),
-    ],
+    args: ["--import", "tsx", srcPath],
   };
 }
 

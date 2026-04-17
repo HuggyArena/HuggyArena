@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Message } from "@aws-sdk/client-bedrock-runtime";
+import type { Message, ToolUseBlock } from "@aws-sdk/client-bedrock-runtime";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { AgentRunner, type TraceEvent } from "../runner/agent";
 import type { AttachedMcp } from "../runner/mcp-client";
@@ -41,11 +41,11 @@ class FakeBedrock implements Pick<BedrockConverseClient, "converse"> {
     if (!turn) throw new Error("FakeBedrock: script exhausted");
     const content: Message["content"] = [];
     if (turn.text) content.push({ text: turn.text });
-    const toolUses = turn.toolUses?.map((u, i) => ({
+    const toolUses: ToolUseBlock[] = (turn.toolUses ?? []).map((u, i) => ({
       toolUseId: `tu_${this.calls}_${i}`,
       name: u.name,
-      input: u.input,
-    })) ?? [];
+      input: u.input as unknown as ToolUseBlock["input"],
+    }));
     for (const tu of toolUses) {
       content.push({
         toolUse: { toolUseId: tu.toolUseId, name: tu.name, input: tu.input },

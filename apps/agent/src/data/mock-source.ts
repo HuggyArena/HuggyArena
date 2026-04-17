@@ -138,10 +138,11 @@ function hashString(s: string): number {
 }
 
 function pseudoRandom(seed: number, i: number): number {
-  // Mulberry32 with (seed + i) — cheap deterministic PRNG.
-  let t = (seed + i * 0x9e3779b1) >>> 0;
-  t = (t ^ (t >>> 15)) * 0x85ebca6b;
-  t = (t ^ (t >>> 13)) * 0xc2b2ae35;
+  // Mulberry32 with (seed + i) — cheap deterministic PRNG. Uses Math.imul to
+  // stay inside 32-bit int range; plain `*` here loses bits above 2^53.
+  let t = (seed + Math.imul(i, 0x9e3779b1)) >>> 0;
+  t = Math.imul(t ^ (t >>> 15), 0x85ebca6b);
+  t = Math.imul(t ^ (t >>> 13), 0xc2b2ae35);
   t = t ^ (t >>> 16);
   return ((t >>> 0) % 1_000_000) / 1_000_000;
 }
