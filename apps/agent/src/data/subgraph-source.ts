@@ -60,6 +60,10 @@ export class SubgraphMarketDataSource implements MarketDataSource {
   }
 
   async listMarkets(filter: ListMarketsFilter = {}): Promise<Market[]> {
+    // Fetch a generous batch from the subgraph and apply client-side filters
+    // before honoring `limit`, so a narrow filter (e.g. category="crypto")
+    // can still return up to `limit` matches instead of being squeezed by
+    // the top-N-by-volume prefix.
     const data = await this.query<{ markets: Array<Record<string, unknown>> }>(
       /* GraphQL */ `
         query ListMarkets($first: Int!) {
@@ -82,17 +86,19 @@ export class SubgraphMarketDataSource implements MarketDataSource {
           }
         }
       `,
-      { first: filter.limit ?? 50 },
+      { first: 500 },
     );
-    return (data?.markets ?? []).map(mapSubgraphMarket).filter((m) => {
+    const q = filter.query?.toLowerCase();
+    const filtered = (data?.markets ?? []).map(mapSubgraphMarket).filter((m) => {
       if (filter.category && m.category !== filter.category) return false;
       if (filter.status && m.status !== filter.status) return false;
-      if (filter.query) {
+      if (q) {
         const hay = `${m.title} ${m.description}`.toLowerCase();
-        if (!hay.includes(filter.query.toLowerCase())) return false;
+        if (!hay.includes(q)) return false;
       }
       return true;
     });
+    return filtered.slice(0, filter.limit ?? 50);
   }
 
   async getMarket(id: string): Promise<Market | null> {
