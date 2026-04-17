@@ -146,44 +146,58 @@ contract ArenaMarket is Initializable, ReentrancyGuard, EIP712Upgradeable, Pausa
         emit MarketApproved(msg.sender);
     }
 
-    function placeBet(bytes32 outcome, uint256 amount, uint256 nonce, uint256 deadline, bytes calldata sig)
+    /// @notice Place a bet on behalf of `user`. The end-user is identified by the
+    /// explicit `user` calldata argument, which is part of the oracle-signed EIP-712
+    /// `Bet` struct — the contract is agnostic to `msg.sender` so the transaction can
+    /// be relayed by Gelato (or any sponsor) via plain `sponsoredCall` without needing
+    /// ERC2771 / meta-transaction forwarding. `user` must have approved this contract
+    /// for at least `amount` of `marketCollateral`.
+    function placeBet(
+        address user,
+        bytes32 outcome,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline,
+        bytes calldata sig
+    )
         external
         nonReentrant
         whenNotPaused
         onlyState(MarketState.OPEN)
     {
+        require(user != address(0), "Market: zero user");
         require(!registry.paused(), "Market: registry paused");
         require(block.timestamp >= params.openTime && block.timestamp < params.closeTime, "Market: timing");
         require(block.timestamp <= deadline, "Market: signature expired");
         require(deadline <= block.timestamp + 300, "Market: deadline too far");
         require(isValidOutcome[outcome], "Market: invalid outcome");
         require(amount >= registry.minBet() && amount <= registry.maxBet(), "Market: amount out of range");
-        require(!registry.checkSanction(msg.sender), "Market: sanctioned");
-        require(!nonceUsed[msg.sender][nonce], "Market: nonce used");
+        require(!registry.checkSanction(user), "Market: sanctioned");
+        require(!nonceUsed[user][nonce], "Market: nonce used");
 
-        if (msg.sender == creator) {
+        if (user == creator) {
             // Cap creator stake at 10% of the pre-bet pool. The check is skipped on an
             // empty market so the creator can seed initial liquidity.
             if (totalPool > 0) {
-                uint256 newStake = userStakes[msg.sender][outcome] + amount;
+                uint256 newStake = userStakes[user][outcome] + amount;
                 require(newStake <= totalPool / 10, "Market: creator cap");
             }
         }
 
-        bytes32 structHash = keccak256(abi.encode(BET_TYPEHASH, address(this), msg.sender, outcome, amount, nonce, deadline));
+        bytes32 structHash = keccak256(abi.encode(BET_TYPEHASH, address(this), user, outcome, amount, nonce, deadline));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, sig);
         require(registry.hasRole(registry.ORACLE_ROLE(), signer), "Market: invalid sig");
 
-        nonceUsed[msg.sender][nonce] = true;
+        nonceUsed[user][nonce] = true;
 
-        marketCollateral.safeTransferFrom(msg.sender, address(this), amount);
+        marketCollateral.safeTransferFrom(user, address(this), amount);
 
-        userStakes[msg.sender][outcome] += amount;
+        userStakes[user][outcome] += amount;
         outcomePools[outcome] += amount;
         totalPool += amount;
 
-        emit BetPlaced(msg.sender, outcome, amount, totalPool, registry.totalFeeBps());
+        emit BetPlaced(user, outcome, amount, totalPool, registry.totalFeeBps());
     }
 
     function closeMarket() external onlyState(MarketState.OPEN) {
