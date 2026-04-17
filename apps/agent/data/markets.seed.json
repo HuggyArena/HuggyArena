@@ -1,0 +1,109 @@
+{
+  "_comment": "Deterministic demo markets for the Clawdius agent. Edit freely — the Mock data source reloads on each process start. Prices are point-in-time snapshots; price_history synthesises the walk deterministically from the market id.",
+  "markets": [
+    {
+      "id": "btc-150k-2026-q2",
+      "title": "Will Bitcoin close above $150,000 at the end of Q2 2026?",
+      "description": "Resolves YES if the BTC/USD close on Coinbase at 2026-06-30T23:59:59Z is strictly greater than $150,000.00. Data source: Coinbase BTC-USD candle. Operator: HuggyArena oracle multisig.",
+      "category": "crypto",
+      "imageUrl": "https://images.huggyarena.xyz/markets/btc-150k.png",
+      "closesAt": "2026-06-30T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 2482100,
+      "priceYesBps": 3800,
+      "priceNoBps": 6200,
+      "tags": ["bitcoin", "price", "q2-2026"]
+    },
+    {
+      "id": "us-election-2028-dem",
+      "title": "Will the Democratic nominee win the 2028 US Presidential Election?",
+      "description": "Resolves YES if the Democratic Party candidate wins an Electoral College majority per Associated Press call after polls close on 2028-11-07. Popular-vote winner is not the resolution criterion.",
+      "category": "politics",
+      "imageUrl": "https://images.huggyarena.xyz/markets/us-2028.png",
+      "closesAt": "2028-11-07T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 8750400,
+      "priceYesBps": 5150,
+      "priceNoBps": 4850,
+      "tags": ["us-politics", "presidential", "2028"]
+    },
+    {
+      "id": "sbf-out-2030",
+      "title": "Will Sam Bankman-Fried be released from federal custody before 2030-01-01?",
+      "description": "Resolves YES if, at any point before 2030-01-01T00:00:00Z, the Federal Bureau of Prisons inmate record for Samuel Bankman-Fried shows a release status (not parole-adjacent transfer). Source: bop.gov inmate locator.",
+      "category": "other",
+      "imageUrl": "https://images.huggyarena.xyz/markets/sbf-release.png",
+      "closesAt": "2029-12-31T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 412800,
+      "priceYesBps": 1200,
+      "priceNoBps": 8800,
+      "tags": ["crypto", "legal"]
+    },
+    {
+      "id": "agi-bench-2026",
+      "title": "Will a public AI model exceed 90% on ARC-AGI-2 before 2027-01-01?",
+      "description": "Resolves YES if the official ARC Prize public leaderboard shows any submission with a final score ≥ 0.9 on ARC-AGI-2 before 2027-01-01T00:00:00Z. Rumoured, leaked, or unverified runs do not count.",
+      "category": "science",
+      "imageUrl": "https://images.huggyarena.xyz/markets/arc-agi-2.png",
+      "closesAt": "2026-12-31T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 1356200,
+      "priceYesBps": 2800,
+      "priceNoBps": 7200,
+      "tags": ["ai", "benchmarks"]
+    },
+    {
+      "id": "champions-league-2026-real",
+      "title": "Will Real Madrid win the 2025-26 UEFA Champions League?",
+      "description": "Resolves YES if Real Madrid CF lifts the UCL trophy in the 2025-26 final. Source: UEFA official result.",
+      "category": "sports",
+      "imageUrl": "https://images.huggyarena.xyz/markets/ucl-2026.png",
+      "closesAt": "2026-05-30T21:00:00Z",
+      "status": "OPEN",
+      "volumeCents": 687900,
+      "priceYesBps": 2400,
+      "priceNoBps": 7600,
+      "tags": ["football", "ucl"]
+    },
+    {
+      "id": "fed-cut-2026-july",
+      "title": "Will the FOMC cut the federal funds rate at the July 2026 meeting?",
+      "description": "Resolves YES if the FOMC announces a reduction in the target federal funds rate at the July 28-29, 2026 meeting. Source: federalreserve.gov press release.",
+      "category": "politics",
+      "imageUrl": "https://images.huggyarena.xyz/markets/fed-cut.png",
+      "closesAt": "2026-07-29T19:00:00Z",
+      "status": "OPEN",
+      "volumeCents": 1987300,
+      "priceYesBps": 6400,
+      "priceNoBps": 3600,
+      "tags": ["fed", "rates", "macro"]
+    },
+    {
+      "id": "eth-etf-staking-2026",
+      "title": "Will a US-listed spot ETH ETF begin offering staking rewards in 2026?",
+      "description": "Resolves YES if any SEC-registered spot ETH ETF publicly begins distributing staking rewards to shareholders at any point during calendar-year 2026. Source: ETF issuer press release + SEC filing.",
+      "category": "crypto",
+      "imageUrl": "https://images.huggyarena.xyz/markets/eth-etf-staking.png",
+      "closesAt": "2026-12-31T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 932100,
+      "priceYesBps": 3200,
+      "priceNoBps": 6800,
+      "tags": ["ethereum", "etf", "regulation"]
+    },
+    {
+      "id": "mars-crewed-2028",
+      "title": "Will a crewed Mars landing occur before 2030-01-01?",
+      "description": "Resolves YES if a crewed spacecraft carrying at least one human has made a confirmed, survived landing on the Martian surface before 2030-01-01T00:00:00Z. Source: joint confirmation from a recognised space agency (NASA, ESA, CNSA, Roscosmos, SpaceX).",
+      "category": "science",
+      "imageUrl": "https://images.huggyarena.xyz/markets/mars-crewed.png",
+      "closesAt": "2029-12-31T23:59:59Z",
+      "status": "OPEN",
+      "volumeCents": 254400,
+      "priceYesBps": 300,
+      "priceNoBps": 9700,
+      "tags": ["space", "long-dated"]
+    }
+  ]
+}

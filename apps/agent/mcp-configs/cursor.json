@@ -1,0 +1,20 @@
+{
+  "_comment": "Paste into Cursor: Settings > MCP > Add Server. This variant uses tsx so you can run straight from the TypeScript source without building first — useful while iterating on new tools.",
+  "mcpServers": {
+    "huggyarena": {
+      "command": "pnpm",
+      "args": [
+        "--silent",
+        "--filter",
+        "@arena/agent",
+        "exec",
+        "tsx",
+        "src/mcp-server/index.ts"
+      ],
+      "cwd": "/absolute/path/to/HuggyArena",
+      "env": {
+        "HUGGYARENA_AGENT_SOURCE": "mock"
+      }
+    }
+  }
+}
