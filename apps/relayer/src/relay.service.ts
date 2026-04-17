@@ -27,9 +27,11 @@ type SubmitRelayInput = {
   deadline?: number;
 };
 
-// ABI fragment used for decoding placeBet calldata in submit().
+// ABI fragment used for decoding placeBet calldata in submit(). The contract's
+// placeBet now takes `user` as an explicit first argument so the call can be
+// relayed from any sponsor (Gelato, etc.) without ERC2771 forwarding.
 const PLACE_BET_IFACE = new ethers.Interface([
-  'function placeBet(bytes32 outcome, uint256 amount, uint256 nonce, uint256 deadline, bytes calldata sig)',
+  'function placeBet(address user, bytes32 outcome, uint256 amount, uint256 nonce, uint256 deadline, bytes calldata sig)',
 ]);
 
 // EIP-712 type definition for a Bet struct (mirrors ArenaMarket.BET_TYPEHASH).
@@ -127,12 +129,12 @@ export class RelayService implements OnApplicationShutdown {
       };
     }
 
-    const relayResult = await this.gelato.sponsorCallERC2771({
-      chainId: dto.chainId,
+    const relayResult = await this.gelato.sponsorCall({
+      // Gelato SDK v5 types chainId as bigint.
+      chainId: BigInt(dto.chainId),
       target: dto.target,
       data: dto.data,
-      user: dto.userAddress,
-    } as any);
+    });
 
     const tx = await this.prisma.relayedTransaction.create({
       data: {
@@ -194,14 +196,21 @@ export class RelayService implements OnApplicationShutdown {
       throw new BadRequestException('Invalid calldata: unable to decode placeBet');
     }
 
-    const [outcome, calldataAmount, nonce, deadline, sig] = decoded;
+    const [calldataUser, outcome, calldataAmount, nonce, deadline, sig] = decoded;
 
     // 1. Amount in calldata must match the amount used for balance validation.
     if (calldataAmount.toString() !== dto.amount) {
       throw new BadRequestException('Calldata amount does not match submitted amount');
     }
 
-    // 2. Recover the signer from the embedded oracle signature and verify it matches
+    // 2. User encoded in calldata must match the submitted user (the contract keys
+    //    stake/nonce state on the calldata `user`, so a mismatch would attribute
+    //    state to the wrong address).
+    if ((calldataUser as string).toLowerCase() !== dto.userAddress.toLowerCase()) {
+      throw new BadRequestException('Calldata user does not match submitted user');
+    }
+
+    // 3. Recover the signer from the embedded oracle signature and verify it matches
     //    the oracle key configured on this service.
     const domain = {
       name: 'ArenaMarket',
@@ -211,7 +220,7 @@ export class RelayService implements OnApplicationShutdown {
     };
     const betTypedDataValue = {
       market: dto.target,
-      user: dto.userAddress,
+      user: calldataUser as string,
       outcome: outcome as string,
       amount: calldataAmount as bigint,
       nonce: nonce as bigint,

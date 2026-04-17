@@ -100,7 +100,7 @@ contract ArenaMarketEIP712Test is Test {
 
         vm.prank(user);
         vm.expectRevert("Market: signature expired");
-        market.placeBet(OUTCOME_YES, amount, nonce, deadline, sig);
+        market.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
     }
 
     /// @dev Reusing a nonce after a successful bet must be rejected.
@@ -111,14 +111,17 @@ contract ArenaMarketEIP712Test is Test {
 
         bytes memory sig = _signBet(address(market), user, OUTCOME_YES, amount, nonce, deadline);
 
-        // First bet succeeds.
+        // First bet succeeds. `placeBet` now takes `user` as an explicit arg so the
+        // call can be relayed from any sponsor; we still prank `user` here to exercise
+        // the direct-EOA path, and a second call from anyone with the same signed
+        // nonce (tested via a subsequent prank) must also fail.
         vm.prank(user);
-        market.placeBet(OUTCOME_YES, amount, nonce, deadline, sig);
+        market.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
 
         // Second bet with the same nonce must fail.
         vm.prank(user);
         vm.expectRevert("Market: nonce used");
-        market.placeBet(OUTCOME_YES, amount, nonce, deadline, sig);
+        market.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
     }
 
     /// @dev A signature scoped to market A must not be accepted on market B (cross-market replay).
@@ -160,7 +163,7 @@ contract ArenaMarketEIP712Test is Test {
         // includes verifyingContract, making cross-market replay impossible.
         vm.prank(user);
         vm.expectRevert("Market: invalid sig");
-        market2.placeBet(OUTCOME_YES, amount, nonce, deadline, sig);
+        market2.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
     }
 }
 
