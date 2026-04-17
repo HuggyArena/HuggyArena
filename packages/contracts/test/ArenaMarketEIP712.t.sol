@@ -165,6 +165,72 @@ contract ArenaMarketEIP712Test is Test {
         vm.expectRevert("Market: invalid sig");
         market2.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
     }
+
+    /// @dev Core new capability: a third-party relayer (msg.sender != user) must
+    /// be able to place a bet on `user`'s behalf given a valid oracle signature,
+    /// and the resulting stake / nonce state must be keyed on `user` rather than
+    /// the relayer.
+    function testRelayerCanPlaceBetOnBehalfOfUser() public {
+        uint256 amount = 1_000_000;
+        uint256 nonce = 7;
+        uint256 deadline = block.timestamp + 200;
+
+        bytes memory sig = _signBet(address(market), user, OUTCOME_YES, amount, nonce, deadline);
+
+        // Relayer is an arbitrary, unrelated address — specifically NOT `user`.
+        address relayer = address(0xFEEDFACE);
+        assertTrue(relayer != user, "test setup: relayer must differ from user");
+
+        vm.prank(relayer);
+        market.placeBet(user, OUTCOME_YES, amount, nonce, deadline, sig);
+
+        // Stake and nonce state must be attributed to `user` (the calldata arg),
+        // not the relayer (msg.sender).
+        assertEq(market.userStakes(user, OUTCOME_YES), amount, "user stake not credited");
+        assertEq(market.userStakes(relayer, OUTCOME_YES), 0, "stake wrongly credited to relayer");
+        assertTrue(market.nonceUsed(user, nonce), "user nonce not marked used");
+        assertFalse(market.nonceUsed(relayer, nonce), "relayer nonce wrongly marked used");
+    }
+
+    /// @dev `placeBet` must reject `user == address(0)` before touching the oracle
+    /// signature path, since a forgotten calldata arg would otherwise attribute
+    /// stake / nonce state to the zero address.
+    function testZeroUserRejected() public {
+        uint256 amount = 1_000_000;
+        uint256 nonce = 11;
+        uint256 deadline = block.timestamp + 200;
+
+        // Sign for address(0) so we exercise the explicit zero-user guard rather
+        // than tripping the sig-recovery check first.
+        bytes memory sig = _signBet(address(market), address(0), OUTCOME_YES, amount, nonce, deadline);
+
+        vm.prank(user);
+        vm.expectRevert("Market: zero user");
+        market.placeBet(address(0), OUTCOME_YES, amount, nonce, deadline, sig);
+    }
+
+    /// @dev Submitting a signature bound to `userA` with a calldata arg of `userB`
+    /// must fail the oracle signature recovery: the contract hashes the struct with
+    /// `userB`, producing a digest the oracle never signed, so the recovered signer
+    /// is not the oracle.
+    function testMismatchedUserSignatureRejected() public {
+        address userB = address(0xCAFE);
+        assertTrue(userB != user, "test setup: userB must differ from user");
+
+        uint256 amount = 1_000_000;
+        uint256 nonce = 13;
+        uint256 deadline = block.timestamp + 200;
+
+        // Oracle signs a bet for `user`...
+        bytes memory sig = _signBet(address(market), user, OUTCOME_YES, amount, nonce, deadline);
+
+        // ...but the caller submits it with a different calldata user. The
+        // reconstructed struct hash uses userB, so ECDSA.recover yields a signer
+        // that is not the oracle.
+        vm.prank(userB);
+        vm.expectRevert("Market: invalid sig");
+        market.placeBet(userB, OUTCOME_YES, amount, nonce, deadline, sig);
+    }
 }
 
 contract MockUSDC {
