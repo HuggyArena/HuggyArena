@@ -5,7 +5,8 @@ import { ArenaMarket as ArenaMarketTemplate } from '../generated/templates';
 
 export function handleMarketCreated(event: MarketCreated): void {
   let market = new Market(event.params.proxy.toHexString());
-  market.marketId = event.params.marketId;
+  // `marketId` is an indexed string in the ABI, which arrives as keccak256 Bytes.
+  market.marketId = event.params.marketId.toHexString();
   market.creator = event.params.creator.toHexString();
   market.status = 'PENDING_APPROVAL';
   market.totalPool = BigInt.fromI32(0);

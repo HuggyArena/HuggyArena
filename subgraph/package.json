@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "codegen": "graph codegen",
-    "build": "graph build"
+    "build": "graph codegen && graph build"
   },
   "devDependencies": {
     "@graphprotocol/graph-cli": "^0.98.1",
