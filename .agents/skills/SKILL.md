@@ -133,7 +133,7 @@ export RPC_URL="https://mainnet.base.org"
 cd packages/contracts
 forge create src/ArenaRegistry.sol:ArenaRegistry \
   --rpc-url $RPC_URL --private-key $PRIVATE_KEY \
-  --constructor-args $ADMIN_ADDRESS $USDC_ADDRESS $TREASURY_ADDRESS
+  --constructor-args $USDC_ADDRESS $ADMIN_ADDRESS
 
 # Verify
 forge verify-contract $ADDRESS src/ArenaRegistry.sol:ArenaRegistry \
