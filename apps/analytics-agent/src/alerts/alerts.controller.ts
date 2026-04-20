@@ -71,6 +71,7 @@ export class AlertsController {
   @ApiParam({ name: 'id', description: 'Alert ID' })
   acknowledgeAlert(@Param('id') id: string) {
     const success = this.alertsService.acknowledgeAlert(id);
-    return { acknowledged: success };
+    if (!success) throw new NotFoundException('Alert not found');
+    return { acknowledged: true };
   }
 }
