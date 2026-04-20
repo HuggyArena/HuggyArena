@@ -99,7 +99,12 @@ export class RevenueService {
     };
   }
 
-  /** Per-creator revenue leaderboard. */
+  /**
+   * Per-creator revenue leaderboard, ranked by total market volume descending.
+   *
+   * Because totalVolume is a derived aggregate (SUM of market totalPool), we
+   * fetch all creators, compute volume client-side, sort, and then slice.
+   */
   async getCreatorRevenue(limit: number): Promise<CreatorRevenue[]> {
     const creators = await this.prisma.creator.findMany({
       include: {
@@ -110,22 +115,25 @@ export class RevenueService {
           },
         },
       },
-      orderBy: { reputationScore: 'desc' },
-      take: limit,
     });
 
-    return creators.map((c) => {
-      const totalVolume = c.markets.reduce((sum, m) => sum + Number(m.totalPool), 0);
-      return {
-        creatorId: c.id,
-        userId: c.userId,
-        tier: c.tier,
-        marketCount: c.markets.length,
-        totalVolume: totalVolume.toFixed(6),
-        estimatedCreatorFees: (totalVolume * bpsToFraction(c.feeShareBps)).toFixed(6),
-        bondLocked: c.bondLocked.toString(),
-      };
-    });
+    const ranked = creators
+      .map((c) => {
+        const totalVolume = c.markets.reduce((sum, m) => sum + Number(m.totalPool), 0);
+        return {
+          creatorId: c.id,
+          userId: c.userId,
+          tier: c.tier,
+          marketCount: c.markets.length,
+          totalVolume: totalVolume.toFixed(6),
+          estimatedCreatorFees: (totalVolume * bpsToFraction(c.feeShareBps)).toFixed(6),
+          bondLocked: c.bondLocked.toString(),
+        };
+      })
+      .sort((a, b) => parseFloat(b.totalVolume) - parseFloat(a.totalVolume))
+      .slice(0, limit);
+
+    return ranked;
   }
 
   /** Relay transaction analytics — gasless relay cost tracking. */
