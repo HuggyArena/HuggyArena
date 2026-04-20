@@ -12,7 +12,9 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
   app.use(helmet());
-  app.enableCors();
+  app.enableCors({
+    origin: process.env.CORS_ORIGINS?.split(',') ?? [],
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -34,6 +36,7 @@ async function bootstrap() {
     .addTag('customers', 'Customer behavior and segmentation')
     .addTag('alerts', 'Automated alert configuration')
     .addTag('health', 'Service health checks')
+    .addApiKey({ type: 'apiKey', name: 'x-api-key', in: 'header' }, 'api-key')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
