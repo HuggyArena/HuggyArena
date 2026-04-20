@@ -44,7 +44,7 @@ pnpm build
 
 ## Build & Test
 
-### Build All (5 workspaces: contracts, shared-prisma, relayer, indexer, subgraph)
+### Build All (workspaces: contracts, shared-prisma, relayer, indexer, subgraph, analytics-agent)
 ```bash
 pnpm build
 ```
@@ -79,6 +79,13 @@ pnpm relayer:dev
 pnpm indexer:dev
 ```
 
+### Analytics Agent (port 3003) — Purchase intelligence & signals API
+```bash
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/arena" PORT=3003 pnpm --filter @arena/analytics-agent start:dev
+# Swagger docs: http://localhost:3003/api/docs
+# Health check: http://localhost:3003/api/health
+```
+
 ### Database
 ```bash
 # Start PostgreSQL (5432) + Redis (6379)
@@ -95,11 +102,52 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/arena" pnpm prisma:m
 cd prisma && npx prisma studio
 ```
 
+## Testing the Analytics Agent
+
+### Seeding Test Data
+Use `docker exec` with individual psql commands to insert seed data. Heredocs through `docker exec` may silently fail — use single `-c` flag commands instead:
+```bash
+# Example: seed users
+docker exec config-db-1 psql -U postgres -d arena -c "INSERT INTO \"User\" (id, \"walletAddress\", ...) VALUES (...);"
+```
+
+Recommended seed data for comprehensive testing:
+- 3 users (whale: $10K wagered, power: $2.8K wagered, casual: $100 wagered)
+- 3 markets (2 OPEN, 1 RESOLVED) with outcomes
+- 9 bets across all users and markets
+- 4 positions (2 open, 2 settled with varying claimable amounts)
+- 3 relay transactions (2 CONFIRMED, 1 PENDING)
+
+### Key API Endpoints to Test
+| Endpoint | Key Assertions |
+|----------|---------------|
+| GET /api/health | `status: "ok"`, `database: "ok"` |
+| GET /api/signals/dashboard | totalVolume, totalBets, totalUsers, activeMarkets match seed data |
+| GET /api/signals/purchases?window=all | Returns all bets with user/market/outcome relations |
+| GET /api/signals/markets?window=all | Markets sorted by totalPool desc |
+| GET /api/customers/profiles?minWagered=X | `total` reflects filtered count (not raw DB count) |
+| GET /api/customers/segments | Segment counts match thresholds: whale>=5000, power>=1000, regular>=100 |
+| GET /api/customers/whales?minBetAmount=X | Only users whose largest single bet >= X |
+| GET /api/revenue/breakdown?window=all | Fee BPS: protocol=2.75%, creator=1%, referral=0.5%, dispute=0.75% |
+| GET /api/revenue/relay?window=all | Transaction counts by status |
+| PATCH /api/alerts/rules/:id | Returns 404 for nonexistent rule IDs |
+
+### Known Behaviors
+- Dashboard `estimatedRevenue` shows protocol fee only (2.75%), not total 5%. Full breakdown at `/api/revenue/breakdown`.
+- Dashboard `topWhale` is null until the first 5-minute collector cron cycle runs. Use `/api/customers/whales` for on-demand whale queries.
+- Fired alerts are empty until the first 1-minute alert cron cycle. Rules are configured at startup.
+- The collector cron (every 5 min) caches a snapshot; most endpoints fall back to live DB queries if no snapshot exists.
+
+### CI Notes
+- CodeQL SARIF upload failures (Analyze actions/python/javascript-typescript) are pre-existing GitHub infrastructure issues, not code-related.
+- Actual code checks: `Contracts (forge test)` and `pnpm typecheck` are the ones to watch.
+
 ## Repository Structure
 ```
 packages/contracts/       — Solidity 0.8.26 (ArenaMarket, ArenaRegistry, ArenaFactory)
-apps/relayer/            — NestJS gasless relayer
-apps/indexer/            — NestJS event indexer
+apps/relayer/            — NestJS gasless relayer (port 3001)
+apps/indexer/            — NestJS event indexer (port 3002)
+apps/analytics-agent/    — NestJS analytics & signals API (port 3003)
 packages/shared-prisma/  — Shared Prisma ORM client
 prisma/                  — Database schema + migrations
 subgraph/                — The Graph subgraph
@@ -157,3 +205,6 @@ graph deploy --studio arena-hf-top
 - `SUMSUB_APP_TOKEN` / `SUMSUB_SECRET_KEY` — KYC
 - `ADMIN_ADDRESS` — Multisig admin (NEVER use placeholder on mainnet)
 - `REGISTRY_ADDRESS` — Deployed ArenaRegistry address
+
+## Devin Secrets Needed
+No secrets required for local testing — the analytics-agent only needs `DATABASE_URL` which uses the local Docker PostgreSQL instance with default credentials (`postgres:postgres`).
