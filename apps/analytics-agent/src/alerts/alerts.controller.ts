@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Query, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Query, Body, Param, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody, ApiParam } from '@nestjs/swagger';
 import { AlertsService, AlertRule, AlertType } from './alerts.service';
 import { IsString, IsNumber, IsBoolean, IsEnum, IsOptional } from 'class-validator';
@@ -53,7 +53,7 @@ export class AlertsController {
   @ApiParam({ name: 'id', description: 'Rule ID' })
   toggleRule(@Param('id') id: string, @Body() dto: ToggleRuleDto) {
     const rule = this.alertsService.toggleRule(id, dto.enabled);
-    if (!rule) return { error: 'Rule not found' };
+    if (!rule) throw new NotFoundException('Rule not found');
     return rule;
   }
 

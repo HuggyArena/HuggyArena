@@ -54,7 +54,15 @@ export class CustomersService {
     private readonly collector: CollectorService,
   ) {}
 
-  /** Full customer profiles with segmentation and lifetime metrics. */
+  /**
+   * Full customer profiles with segmentation and lifetime metrics.
+   *
+   * Because totalWagered is a derived aggregate (SUM of bet amounts), filtering
+   * and sorting must happen after aggregation.  We fetch all users matching the
+   * base `where` clause, compute metrics client-side, then apply minWagered
+   * filter + sort + manual pagination so that `total` accurately reflects the
+   * filtered result set.
+   */
   async getCustomerProfiles(
     limit: number,
     offset: number,
@@ -66,33 +74,31 @@ export class CustomersService {
     // Only users who have placed at least one bet
     where['bets'] = { some: {} };
 
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        include: {
-          bets: {
-            select: {
-              amount: true,
-              marketId: true,
-              createdAt: true,
-              status: true,
-            },
-            orderBy: { createdAt: 'desc' },
+    // 1. Fetch all matching users (no DB-level pagination) so we can
+    //    aggregate, filter, and sort before slicing.
+    const users = await this.prisma.user.findMany({
+      where,
+      include: {
+        bets: {
+          select: {
+            amount: true,
+            marketId: true,
+            createdAt: true,
+            status: true,
           },
-          positions: {
-            select: {
-              stakeAmount: true,
-              claimableAmount: true,
-              status: true,
-            },
+          orderBy: { createdAt: 'desc' },
+        },
+        positions: {
+          select: {
+            stakeAmount: true,
+            claimableAmount: true,
+            status: true,
           },
         },
-        take: limit,
-        skip: offset,
-      }),
-      this.prisma.user.count({ where }),
-    ]);
+      },
+    });
 
+    // 2. Compute per-user metrics
     let profiles: CustomerProfile[] = (users as UserWithRelations[]).map(
       (user: UserWithRelations) => {
         const totalWagered = user.bets.reduce(
@@ -128,15 +134,19 @@ export class CustomersService {
       },
     );
 
-    // Sort by total wagered descending
-    profiles.sort((a, b) => parseFloat(b.totalWagered) - parseFloat(a.totalWagered));
-
-    // Apply minWagered filter post-aggregation
+    // 3. Apply minWagered filter before sorting / pagination
     if (minWagered !== undefined) {
       profiles = profiles.filter((p) => parseFloat(p.totalWagered) >= minWagered);
     }
 
-    return { data: profiles, total };
+    // 4. Sort globally by total wagered descending
+    profiles.sort((a, b) => parseFloat(b.totalWagered) - parseFloat(a.totalWagered));
+
+    // 5. Compute correct total from the filtered set, then paginate
+    const total = profiles.length;
+    const paginated = profiles.slice(offset, offset + limit);
+
+    return { data: paginated, total };
   }
 
   /** Customer segmentation summary. */
