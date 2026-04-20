@@ -110,6 +110,7 @@ export class AlertsService {
 
   /** Get recent alerts. */
   getAlerts(limit: number): FiredAlert[] {
+    if (limit <= 0) return [];
     return this.firedAlerts.slice(-limit).reverse();
   }
 
