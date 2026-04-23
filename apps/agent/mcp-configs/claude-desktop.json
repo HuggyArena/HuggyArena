@@ -1,0 +1,14 @@
+{
+  "_comment": "Drop this into ~/Library/Application Support/Claude/claude_desktop_config.json (macOS) or %APPDATA%/Claude/claude_desktop_config.json (Windows). Adjust the absolute path to wherever HuggyArena is cloned, and run `pnpm --filter @arena/agent build` first so the dist/ artefacts exist.",
+  "mcpServers": {
+    "huggyarena": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/HuggyArena/apps/agent/dist/mcp-server/index.js"
+      ],
+      "env": {
+        "HUGGYARENA_AGENT_SOURCE": "mock"
+      }
+    }
+  }
+}
